@@ -1,0 +1,31 @@
+# DivyaJyoti 2050 - Cline Development Guidelines
+
+## Project Overview
+DivyaJyoti 2050 is a world-class, 100% offline-first Vedic Astronomy, Odia Panjika & Vedic Janma Kundali platform built with React, Vite, TypeScript, TailwindCSS, and Three.js.
+
+## Key Directories & Architecture
+- `src/core/panjika/`: Panjika almanac calculations, Tithi, Nakshatra, Yoga, Karana, Bela, Festivals.
+- `src/core/jataka/`: Vedic Janma Kundali engines:
+  - `kundali_engine.ts`: Core birth chart and house calculation.
+  - `shodashavarga_engine.ts`: 16 Parashari Divisional Charts (D1 through D60).
+  - `shadbala_engine.ts`: 6-fold planetary strength calculation.
+  - `ashtakavarga_engine.ts`: 337-bindu Sarvashtakavarga matrix and reductions.
+  - `special_lagnas_engine.ts`: Indu Lagna (Wealth spot), Sri Lagna, Hora, Ghati, Upagrahas.
+- `src/components/jataka/`:
+  - `JatakaInputForm.tsx`: Native profile, 3D Lagna avatar, live Ishtakala chronometer.
+  - `KundaliCharts.tsx`: 4-direction charts (East, North, South, West) and 3D mode.
+  - `Kundali3DView.tsx`: Three.js WebGL celestial Bhachakra sphere with orbit controls.
+  - `KundaliRenderer.tsx`: Main 22-tab coordinator with cinema mode for 3D.
+- `src/localization/`:
+  - `or.json`: Odia translations (Primary).
+  - `hi.json`: Hindi translations.
+  - `en.json`: English translations.
+  - `i18n.tsx`: Localization context and utilities.
+
+## Verification & Integrity Rules
+Whenever you make changes:
+1. Always run TypeScript check: `npx tsc --noEmit` (ensure 0 errors).
+2. Run test suite: `npx vitest run` (ensure all 99 tests pass).
+3. Build check: `npm run build`.
+4. Maintain tri-lingual integrity: Never hardcode English strings where Odia or Hindi localization is expected.
+5. Preserve astronomical calculations and comments.

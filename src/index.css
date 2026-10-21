@@ -1,0 +1,690 @@
+@import "leaflet/dist/leaflet.css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-cosmic-950 text-slate-100 antialiased selection:bg-cosmic-gold selection:text-cosmic-950;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Completely hide native browser date picker indicator so only our glowing golden custom button is shown */
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    display: none !important;
+    -webkit-appearance: none !important;
+    opacity: 0 !important;
+    pointer-events: none;
+    width: 0;
+    height: 0;
+  }
+
+  input[type="time"]::-webkit-calendar-picker-indicator {
+    display: none !important;
+    -webkit-appearance: none !important;
+    opacity: 0 !important;
+    pointer-events: none;
+    width: 0;
+    height: 0;
+  }
+}
+
+/* Custom highly-visible glowing golden cosmic scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #f59e0b rgba(15, 23, 42, 0.85);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.95);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #f59e0b, #eab308);
+  border-radius: 9999px;
+  border: 1.5px solid rgba(15, 23, 42, 0.9);
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.5);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #fbbf24;
+}
+
+/* Cosmic Visible Scrollbar for prominent scrollable regions */
+.cosmic-visible-scrollbar {
+  scrollbar-width: auto;
+  scrollbar-color: #f59e0b rgba(15, 23, 42, 0.9);
+}
+.cosmic-visible-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.cosmic-visible-scrollbar::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.95);
+  border-radius: 9999px;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  margin: 3px;
+}
+.cosmic-visible-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #f59e0b, #d97706);
+  border-radius: 9999px;
+  border: 2px solid rgba(15, 23, 42, 0.9);
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.7);
+}
+.cosmic-visible-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #fbbf24;
+}
+
+/* Cosmic Glow Scrollbar for Planetary Dock & HUD panels */
+.cosmic-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #f59e0b rgba(15, 23, 42, 0.6);
+}
+.cosmic-scrollbar::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+.cosmic-scrollbar::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 9999px;
+  margin: 0 10px;
+}
+.cosmic-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(90deg, #f59e0b, #eab308);
+  border-radius: 9999px;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.6);
+}
+.cosmic-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #fbbf24;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+.no-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+
+/* Mobile Touch & Smooth Performance ("Makhan Jaisa" UX) */
+.mobile-touch-scroll {
+  -webkit-overflow-scrolling: touch !important;
+  scroll-behavior: smooth;
+  touch-action: auto !important;
+}
+
+.mobile-touch-scroll-x,
+.touch-pan-x {
+  -webkit-overflow-scrolling: touch !important;
+  scroll-behavior: smooth;
+  touch-action: pan-x !important;
+  overscroll-behavior-x: contain;
+}
+
+.mobile-touch-scroll-y,
+.touch-pan-y {
+  -webkit-overflow-scrolling: touch !important;
+  scroll-behavior: smooth;
+  touch-action: pan-y !important;
+  overscroll-behavior-y: contain;
+}
+
+.touch-manipulation {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 768px) {
+  /* Prevent horizontal jank & ensure butter-smooth vertical scroll */
+  body {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: auto;
+  }
+}
+
+
+@keyframes spinSlow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spinSlow 20s linear infinite;
+}
+
+/* Today's Date Cell — Professional Live Glow Effect */
+@keyframes todayPulse {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(34, 211, 238, 0.3), inset 0 0 15px rgba(34, 211, 238, 0.05);
+  }
+  50% {
+    box-shadow: 0 0 35px rgba(34, 211, 238, 0.55), inset 0 0 25px rgba(34, 211, 238, 0.12);
+  }
+}
+
+@keyframes shimmer {
+  0%, 100% {
+    opacity: 0.8;
+    background-position: -200% 0;
+  }
+  50% {
+    opacity: 1;
+    background-position: 200% 0;
+  }
+}
+
+/* Leaflet Satellite Tile Resiliency - Eliminate black missing tile squares */
+.leaflet-container {
+  background-color: #1e293b !important;
+  outline: none;
+}
+.leaflet-tile {
+  filter: brightness(0.98) contrast(1.02);
+}
+.leaflet-tile-error {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+/* Professional Glowing Cosmology Book Scrollbar */
+.custom-book-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.custom-book-scrollbar::-webkit-scrollbar-track {
+  background: rgba(2, 6, 23, 0.7);
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+.custom-book-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #f59e0b 0%, #06b6d4 50%, #8b5cf6 100%);
+  border-radius: 9999px;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+}
+.custom-book-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #fbbf24 0%, #38bdf8 50%, #a855f7 100%);
+}
+
+/* Universal dark mode styling for select dropdowns & optgroups to eliminate browser white-bar glitch */
+select option {
+  background-color: #030712 !important;
+  color: #f1f5f9 !important;
+}
+
+select option:disabled {
+  background-color: #0f172a !important;
+  color: #f59e0b !important;
+  font-weight: 700 !important;
+}
+
+select optgroup {
+  background-color: #0f172a !important;
+  color: #f59e0b !important;
+  font-weight: 700 !important;
+}
+
+/* ===== VEDIC KUNDALI GRANTHA (BOOK-STYLE PRINT) ===== */
+.vedic-book { font-family: Georgia, 'Times New Roman', 'Noto Serif', serif; max-width: 210mm; margin: 0 auto; }
+@page kundaliBook { size: A4 portrait; margin: 14mm 12mm; }
+.vedic-book { page: kundaliBook; }
+.book-cover { page-break-after: always; break-after: page; display: flex; align-items: center; justify-content: center; min-height: 88vh; }
+.book-cover-inner { border: 5px double #92400e; padding: 28px 34px; text-align: center; width: 100%; box-shadow: inset 0 0 0 3px #fff, inset 0 0 0 4.5px #b45309; }
+.book-title { font-size: 26px; font-weight: 900; color: #78350f; margin-top: 10px; line-height: 1.25; }
+.book-rule { height: 0; border-top: 2px solid #b45309; border-bottom: 1px solid #b45309; padding-top: 2px; margin: 14px 12%; }
+.book-cover-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 18px; margin-top: 14px; font-size: 12px; text-align: left; }
+.book-chapter { page-break-before: always; break-before: page; padding-top: 4px; }
+.book-chapter-head { text-align: center; font-size: 16px; font-weight: 900; color: #78350f; border-bottom: 3px double #92400e; padding-bottom: 8px; margin-bottom: 12px; line-height: 1.4; }
+.chapter-sub { font-size: 11px; font-weight: 600; color: #44403c; letter-spacing: 0.04em; }
+.book-toc { font-size: 13px; line-height: 2; padding-left: 22px; }
+.book-toc li { margin-bottom: 4px; }
+.book-subhead { font-size: 13px; font-weight: 900; color: #92400e; margin: 14px 0 6px; border-left: 4px solid #d97706; padding-left: 8px; }
+.book-table { width: 100%; border-collapse: collapse; font-size: 11px; margin: 6px 0; table-layout: fixed; }
+.book-table thead { display: table-header-group; }
+.book-table tfoot { display: table-footer-group; }
+.book-table tr { page-break-inside: avoid; break-inside: avoid; }
+.book-table th, .book-table td { overflow-wrap: anywhere; word-break: break-word; }
+.book-table th { background: #fef3c7; color: #1c1917; border: 1px solid #92400e; padding: 4px 5px; text-align: left; font-size: 10px; }
+.book-table td { border: 1px solid #a8a29e; padding: 3px 5px; vertical-align: top; }
+.book-table td.k { background: #f5f5f4; font-weight: 700; white-space: nowrap; }
+.book-table .row-active td { background: #fef9c3; font-weight: 700; }
+.book-days td { font-size: 9.5px; line-height: 1.35; }
+.book-note { font-size: 11.5px; line-height: 1.55; background: #fffbeb; border: 1px solid #fcd34d; border-left: 4px solid #d97706; padding: 6px 9px; margin: 6px 0; }
+.book-month-head { font-size: 13px; font-weight: 900; color: #78350f; background: #fef3c7; border: 1px solid #92400e; padding: 4px 8px; margin-top: 12px; }
+/* Chart gallery (pure SVG) — screen grid + print book layout */
+.book-charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; margin: 6px 0; page-break-inside: avoid; break-inside: avoid; }
+.book-chart-box { border: 1px solid #a8a29e; border-radius: 4px; padding: 6px 7px; background: #fffdf7; page-break-inside: avoid; break-inside: avoid; }
+.book-chart-title { font-size: 12px; font-weight: 900; color: #92400e; border-bottom: 1px dotted #d6d3d1; padding-bottom: 3px; margin-bottom: 2px; }
+.book-chart-sub { font-size: 9px; color: #57534e; margin-bottom: 3px; }
+/* Odia-style 4x4 CHOUKA kundali grid (12 houses + center) */
+.chouka-grid { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr); width: 100%; max-width: 560px; aspect-ratio: 1 / 1; margin: 10px auto; border: 2.5px solid #78350f; }
+.chouka-cell { border: 1px solid #a8a29e; padding: 4px 5px; display: flex; flex-direction: column; justify-content: flex-start; background: #fffdf7; }
+.chouka-meta { font-size: 9.5px; font-weight: 900; color: #92400e; border-bottom: 1px dotted #d6d3d1; margin-bottom: 2px; }
+.chouka-planets { font-size: 11px; font-weight: 700; color: #1c1917; line-height: 1.35; }
+.chouka-center { grid-row: 2 / span 2; grid-column: 2 / span 2; border: 1.5px solid #78350f; background: #fef3c7; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 8px; }
+@media print {
+  .vedic-book { page: kundaliBook; }
+  .book-cover { min-height: auto; }
+}
+
+/* ============ KUNDALI MILAN COMPACT 2-PAGE PRINT & PDF SHEET ============ */
+.milan-report-sheet {
+  font-family: 'Noto Serif Oriya', 'Noto Sans Oriya', 'Nirmala UI', sans-serif !important;
+  width: 100%;
+  max-width: 210mm;
+  margin: 0 auto;
+  background: #ffffff;
+  color: #1c1917;
+  line-height: 1.35;
+}
+
+.milan-report-sheet,
+.milan-report-sheet * {
+  content-visibility: visible !important;
+  contain-intrinsic-size: none !important;
+  box-sizing: border-box;
+}
+
+.milan-sheet-page {
+  box-sizing: border-box;
+  width: 794px;
+  min-width: 794px;
+  max-width: 794px;
+  min-height: 1123px;
+  padding: 12px 16px;
+  background: #ffffff;
+  color: #1c1917;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.milan-sheet-page-1 {
+  page-break-after: always !important;
+  break-after: page !important;
+}
+
+.milan-sheet-page-2 {
+  page-break-after: avoid !important;
+  break-after: avoid !important;
+}
+
+.milan-page-border-frame {
+  border: 2px solid #b45309;
+  outline: 1px solid #d97706;
+  outline-offset: -5px;
+  border-radius: 8px;
+  padding: 10px 12px 8px 12px;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: #ffffff;
+  box-sizing: border-box;
+}
+
+.milan-header-box {
+  border: 1.5px solid #d97706;
+  background: linear-gradient(180deg, #fffbeb 0%, #fef3c7 100%);
+  padding: 7px 12px;
+  border-radius: 6px;
+  text-align: center;
+  margin-bottom: 8px;
+  box-shadow: 0 1px 3px rgba(180, 83, 9, 0.08);
+}
+
+.milan-score-grid {
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 8px !important;
+  margin-bottom: 8px !important;
+}
+
+.milan-score-card {
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+  border: 1px solid #d97706;
+  background: #fffbeb;
+  padding: 6px 8px;
+  border-radius: 6px;
+  text-align: center;
+}
+
+.milan-sec-head {
+  font-size: 12px;
+  font-weight: 900;
+  color: #78350f;
+  border-bottom: 1.8px solid #b45309;
+  padding-bottom: 2.5px;
+  margin: 7px 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.milan-sec-sub {
+  font-size: 10px;
+  font-weight: 700;
+  color: #78716c;
+}
+
+.milan-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+  margin: 2px 0 5px;
+  table-layout: fixed;
+}
+
+.milan-table th {
+  background: #fef3c7;
+  color: #78350f;
+  border: 1.2px solid #b45309;
+  padding: 3px 6px;
+  font-weight: 800;
+  text-align: left;
+  font-size: 9px;
+}
+
+.milan-table td {
+  border: 1px solid #cbd5e1;
+  padding: 2.5px 6px;
+  vertical-align: middle;
+  color: #1e293b;
+  line-height: 1.25;
+}
+
+.milan-table tr:nth-child(even) td {
+  background: #fafaf9;
+}
+
+.milan-table tr {
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.milan-note-box {
+  font-size: 9.5px;
+  line-height: 1.35;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-left: 3.5px solid #d97706;
+  padding: 4px 8px;
+  margin: 3px 0 5px;
+  border-radius: 4px;
+  color: #451a03;
+}
+
+.blessing-box {
+  border: 1.2px dashed #b45309;
+  background: linear-gradient(180deg, #fffbeb 0%, #fef3c7 60%, #fffbeb 100%);
+  padding: 5px 10px;
+  border-radius: 6px;
+  text-align: center;
+  margin: 4px 0 3px;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-weight: 800;
+  font-size: 10px;
+  text-align: center;
+}
+
+.badge-auspicious {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.badge-good {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.badge-mixed {
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
+}
+
+.badge-dosha {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.footer-seal {
+  text-align: center;
+  font-size: 10px;
+  font-weight: bold;
+  color: #78350f;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  border-top: 1.5px solid #d97706;
+  margin-top: 6px;
+  margin-bottom: 2px;
+}
+
+.milan-charts-print-grid {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+  margin: 2px 0 4px !important;
+}
+
+.milan-charts-row {
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 8px !important;
+  margin: 0 !important;
+}
+
+.milan-chart-card {
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+  border: 1px solid #d97706;
+  border-radius: 6px;
+  padding: 3px 6px !important;
+  background: #fffbeb;
+  box-sizing: border-box;
+}
+
+.milan-chart-card svg {
+  max-height: 96px !important;
+}
+
+/* ============ MOBILE SMOOTHNESS & PREVIEW PERFORMANCE (screen only) ============ */
+/* Skip rendering offscreen chapters in the on-screen preview — keeps the 18-chapter + 365-day Grantha silky on phones. Never applied to print. */
+@media screen {
+  .book-chapter { content-visibility: auto; contain-intrinsic-size: auto 900px; }
+}
+/* Comfortable, precise taps — no 300ms delay, no gray flash */
+button, a, select, [role="button"] { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+/* Modal scroll: stop iOS rubber-band glitching through the backdrop */
+.odia-print-inner-scroll { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+/* Phone: tighter book metrics so tables get maximum width — nothing overlaps */
+@media screen and (max-width: 640px) {
+  .vedic-book { font-size: 95%; }
+  .book-cover-inner { padding: 18px 14px; }
+  .book-table { font-size: 9.5px; }
+  .book-table th { font-size: 8.5px; padding: 3px; }
+  .book-table td { padding: 2px 3px; }
+  .book-days td { font-size: 8.5px; }
+  .chouka-planets { font-size: 9.5px; }
+  .chouka-meta { font-size: 8px; }
+  .book-toc { font-size: 11.5px; line-height: 1.8; padding-left: 18px; }
+}
+
+/* Authentic Odia Wall Calendar Print Layout - Bulletproof 1-Page Guarantee */
+/* Kundali Full-Report Print: clean white sheet, all 365-day rows flow across pages */
+.kundali-print-sheet table { border-collapse: collapse; }
+.kundali-print-sheet th, .kundali-print-sheet td { vertical-align: top; }
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 3mm 4mm;
+  }
+
+  html, body {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    min-height: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* When the preview modal is active in the DOM, completely hide #root so only the modal prints */
+  body:has(.odia-print-modal-overlay) #root {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  /* Reset root app tree & main container so there is zero dark background bleed */
+  #root,
+  .min-h-screen,
+  main {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    min-height: auto !important;
+    height: auto !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Completely strip away all interactive app chrome: Header, NavigationBar, Footer, Cosmic Star Glows, Floating UI */
+  header,
+  nav,
+  footer,
+  .fixed.inset-0.pointer-events-none,
+  .no-print,
+  .print-hide,
+  .print\:hidden {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  /* When printing from modal, neutralize modal fixed overlays so only the sheet prints */
+  .odia-print-modal-overlay {
+    position: static !important;
+    inset: auto !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    z-index: auto !important;
+  }
+
+  .odia-print-viewport-wrapper {
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+    width: 100% !important;
+    display: block !important;
+    position: static !important;
+    overflow: visible !important;
+  }
+
+  .odia-print-inner-scroll {
+    background: transparent !important;
+    background-color: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+    position: static !important;
+    overflow: visible !important;
+    width: 100% !important;
+  }
+
+  /* The printable sheet takes up the full page cleanly */
+  .odia-print-sheet,
+  .milan-print-sheet {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    overflow: visible !important;
+    page-break-after: avoid !important;
+    page-break-inside: avoid !important;
+    break-after: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .odia-print-sheet *,
+  .milan-print-sheet * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    box-sizing: border-box !important;
+  }
+
+  .print-avoid-break {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+}
+
+/* ── Divine hero title: animated golden shimmer sweep ── */
+@keyframes djShine {
+  from { background-position: 200% center; }
+  to { background-position: -200% center; }
+}
+
+.dj-shine {
+  background-image: linear-gradient(
+    100deg,
+    #fff7cc 15%,
+    #ffd700 30%,
+    #fffbe6 46%,
+    #ffd700 62%,
+    #ff8a00 85%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: djShine 5.5s linear infinite;
+}
