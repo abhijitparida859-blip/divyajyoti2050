@@ -6,15 +6,8 @@ import { NASA_SOLAR_PHYSICS } from './nasaPhysicsData';
 import { LiveBigBangSimulator } from './LiveBigBangSimulator';
 import { SafeErrorBoundary } from '../common/SafeErrorBoundary';
 import {
-  createSunTexture,
-  createMoonTexture,
-  createMarsTexture,
-  createJupiterTexture,
-  createSaturnTexture,
   createSaturnRingTexture,
-  createVenusTexture,
-  createMercuryTexture,
-  createEarthTexture
+  loadRealPlanetTexture
 } from './planetTextures';
 import {
   Sparkles,
@@ -57,11 +50,22 @@ const ZODIAC_SIGNS = [
   { or: 'ମୀନ', en: 'Pisces', glyph: '♓', color: '#4f46e5' },
 ];
 
-// Real NASA semi-major axis values in AU for accurate telemetry
-const REAL_AU: Record<string, number> = {
-  Surya: 0, Budha: 0.387, Shukra: 0.723, Chandra: 0.00257,
-  Prithvi: 1.0, Mangala: 1.524, Guru: 5.204, Shani: 9.582,
-  Rahu: 0, Ketu: 0
+const displayOrbitRadius = (semiMajorAxisAU: number) =>
+  2.5 + Math.sqrt(Math.max(semiMajorAxisAU, 0)) * 5;
+
+const orbitPosition = (
+  angle: number,
+  semiMajorAxis: number,
+  eccentricity: number,
+  inclinationRad: number
+) => {
+  const radius = (semiMajorAxis * (1 - eccentricity * eccentricity)) /
+    (1 + eccentricity * Math.cos(angle));
+  return new THREE.Vector3(
+    Math.cos(angle) * radius,
+    Math.sin(angle) * Math.sin(inclinationRad) * radius,
+    Math.sin(angle) * radius
+  );
 };
 
 const PLANET_DATA: Record<PlanetName, { or: string; en: string; symbol: string; radius: number; size: number; speed: number; rotSpeed: number; inclinationDeg: number }> = {
@@ -78,6 +82,8 @@ const PLANET_DATA: Record<PlanetName, { or: string; en: string; symbol: string; 
 
 export const CosmicOrbChart3D: React.FC<Props> = ({ chartData, onExploreEncyclopedia }) => {
   const mountRef = useRef<HTMLDivElement>(null);
+  const chartDataRef = useRef(chartData);
+  chartDataRef.current = chartData;
   const { t, tGraha, tRashi, formatNumber, language } = useI18n();
 
   const [isPlaying, setIsPlaying] = useState(true);
@@ -195,7 +201,7 @@ export const CosmicOrbChart3D: React.FC<Props> = ({ chartData, onExploreEncyclop
     mount.appendChild(renderer.domElement);
 
     // 2. The Blazing Central Sun (Surya) - Brilliant Light Source
-    const sunTex = createSunTexture();
+    const sunTex = loadRealPlanetTexture('Sun');
     const sunGeo = new THREE.SphereGeometry(2.2, 48, 48);
     const sunMat = new THREE.MeshBasicMaterial({ map: sunTex });
     const sunMesh = new THREE.Mesh(sunGeo, sunMat);
@@ -265,14 +271,15 @@ export const CosmicOrbChart3D: React.FC<Props> = ({ chartData, onExploreEncyclop
     scene.add(asteroidBelt);
 
     // 4. Planets Setup with True NASA 3D Orbital Inclinations
-    const TEXTURES: Partial<Record<PlanetName, THREE.CanvasTexture>> = {
+    const moonTex = loadRealPlanetTexture('Moon');
+    const TEXTURES: Partial<Record<PlanetName, THREE.Texture>> = {
       Surya: sunTex,
-      Chandra: createMoonTexture(),
-      Mangala: createMarsTexture(),
-      Budha: createMercuryTexture(),
-      Guru: createJupiterTexture(),
-      Shukra: createVenusTexture(),
-      Shani: createSaturnTexture(),
+      Chandra: moonTex,
+      Mangala: loadRealPlanetTexture('Mars'),
+      Budha: loadRealPlanetTexture('Mercury'),
+      Guru: loadRealPlanetTexture('Jupiter'),
+      Shukra: loadRealPlanetTexture('Venus'),
+      Shani: loadRealPlanetTexture('Saturn'),
     };
 
     interface PlanetNode {
@@ -284,6 +291,7 @@ export const CosmicOrbChart3D: React.FC<Props> = ({ chartData, onExploreEncyclop
       radius: number;
       rotSpeed: number;
       inclinationRad: number;
+      eccentricity: number;
     }
 
     const planetNodes: PlanetNode[] = [];
@@ -291,18 +299,19 @@ export const CosmicOrbChart3D: React.FC<Props> = ({ chartData, onExploreEncyclop
     scene.add(earthOrbitGroup);
 
     // Earth Sphere
-    const earthTex = createEarthTexture();
+    const earthTex = loadRealPlanetTexture('Earth');
     const earthGeo = new THREE.SphereGeometry(0.55, 32, 32);
     const earthMat = new THREE.MeshStandardMaterial({ map: earthTex, roughness: 0.45, metalness: 0.1 });
     const earthMesh = new THREE.Mesh(earthGeo, earthMat);
+    earthMesh.name = 'Prithvi';
     earthMesh.rotation.z = (23.44 * Math.PI) / 180;
     earthOrbitGroup.add(earthMesh);
 
     // Moon orbiting Earth
-    const moonTex = createMoonTexture();
     const moonGeo = new THREE.SphereGeometry(0.24, 24, 24);
     const moonMat = new THREE.MeshStandardMaterial({ map: moonTex, roughness: 0.8 });
     const moonMesh = new THREE.Mesh(moonGeo, moonMat);
+    moonMesh.name = 'Chandra';
     earthOrbitGroup.add(moonMesh);
 
     // ISRO Aditya-L1 Spacecraft Model
@@ -319,23 +328,65 @@ export const CosmicOrbChart3D: React.FC<Props> = ({ chartData, onExploreEncyclop
     jwstMesh.position.set(0.9, 0.05, 0);
     earthOrbitGroup.add(jwstMesh);
 
-    for (const [pName, pPos] of Object.entries(chartData.planets)) {
+    const earthPhysics = NASA_SOLAR_PHYSICS.Prithvi;
+    const earthOrbitRadius = displayOrbitRadius(earthPhysics.semiMajorAxisAU);
+    const earthInclinationRad = THREE.MathUtils.degToRad(earthPhysics.inclinationDeg);
+    const earthOrbitPoints: THREE.Vector3[] = [];
+    for (let theta = 0; theta <= Math.PI * 2; theta += 0.025) {
+      earthOrbitPoints.push(orbitPosition(
+        theta,
+        earthOrbitRadius,
+        earthPhysics.eccentricity,
+        earthInclinationRad
+      ));
+    }
+    const earthOrbitGeometry = new THREE.BufferGeometry().setFromPoints(earthOrbitPoints);
+    const earthOrbitMaterial = new THREE.LineBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.28
+    });
+    scene.add(new THREE.LineLoop(earthOrbitGeometry, earthOrbitMaterial));
+
+    const moonOrbitRadius = 0.9;
+    const moonOrbitPoints: THREE.Vector3[] = [];
+    for (let theta = 0; theta <= Math.PI * 2; theta += 0.08) {
+      const radius = moonOrbitRadius * (1 - earthPhysics.eccentricity * earthPhysics.eccentricity) /
+        (1 + earthPhysics.eccentricity * Math.cos(theta));
+      moonOrbitPoints.push(new THREE.Vector3(Math.cos(theta) * radius, 0, Math.sin(theta) * radius));
+    }
+    const moonOrbitGeometry = new THREE.BufferGeometry().setFromPoints(moonOrbitPoints);
+    const moonOrbitMaterial = new THREE.LineBasicMaterial({
+      color: 0xcbd5e1,
+      transparent: true,
+      opacity: 0.38
+    });
+    earthOrbitGroup.add(new THREE.LineLoop(moonOrbitGeometry, moonOrbitMaterial));
+
+    for (const [pName, pPos] of Object.entries(chartDataRef.current.planets)) {
       const p = pName as PlanetName;
       const cfg = PLANET_DATA[p];
 
-      if (p === 'Surya') continue;
+      if (p === 'Surya' || p === 'Chandra') continue;
+
+      const physics = NASA_SOLAR_PHYSICS[p];
+      const semiMajorAxisAU = p === 'Rahu' || p === 'Ketu' ? 1 : physics.semiMajorAxisAU;
+      const orbitRadius = displayOrbitRadius(semiMajorAxisAU);
+      const eccentricity = physics.eccentricity;
+      const inclinationRad = THREE.MathUtils.degToRad(physics.inclinationDeg);
 
       const group = new THREE.Group();
-      const incRad = (cfg.inclinationDeg * Math.PI) / 180;
       const trackPoints: THREE.Vector3[] = [];
-      for (let theta = 0; theta <= Math.PI * 2; theta += 0.05) {
-        const x = Math.cos(theta) * cfg.radius;
-        const z = Math.sin(theta) * cfg.radius;
-        const y = Math.sin(theta) * Math.sin(incRad) * 0.8;
-        trackPoints.push(new THREE.Vector3(x, y, z));
+      for (let theta = 0; theta <= Math.PI * 2; theta += 0.025) {
+        trackPoints.push(orbitPosition(theta, orbitRadius, eccentricity, inclinationRad));
       }
       const trackGeo = new THREE.BufferGeometry().setFromPoints(trackPoints);
-      const trackMat = new THREE.LineBasicMaterial({ color: 0x64748b, transparent: true, opacity: 0.12 });
+      const isLunarNode = p === 'Rahu' || p === 'Ketu';
+      const trackMat = new THREE.LineBasicMaterial({
+        color: isLunarNode ? 0xa78bfa : 0x64748b,
+        transparent: true,
+        opacity: isLunarNode ? 0.22 : 0.2
+      });
       const trackLine = new THREE.LineLoop(trackGeo, trackMat);
       scene.add(trackLine);
 
@@ -366,6 +417,8 @@ export const CosmicOrbChart3D: React.FC<Props> = ({ chartData, onExploreEncyclop
       }
 
       const mesh = new THREE.Mesh(pGeo, pMat);
+      mesh.name = p;
+      mesh.rotation.z = THREE.MathUtils.degToRad(physics.axialTiltDeg);
       mesh.userData = { planetName: p };
       group.add(mesh);
 
@@ -384,10 +437,8 @@ export const CosmicOrbChart3D: React.FC<Props> = ({ chartData, onExploreEncyclop
         group.add(satRing);
       }
 
-      const startAngle = (pPos.longitude * Math.PI) / 180;
-      group.position.x = Math.cos(startAngle) * cfg.radius;
-      group.position.z = Math.sin(startAngle) * cfg.radius;
-      group.position.y = Math.sin(startAngle) * Math.sin(incRad) * 0.8;
+      const startAngle = THREE.MathUtils.degToRad(pPos.longitude);
+      group.position.copy(orbitPosition(startAngle, orbitRadius, eccentricity, inclinationRad));
 
       scene.add(group);
 
@@ -396,10 +447,11 @@ export const CosmicOrbChart3D: React.FC<Props> = ({ chartData, onExploreEncyclop
         group,
         mesh,
         angle: startAngle,
-        speed: cfg.speed,
-        radius: cfg.radius,
+        speed: (isLunarNode ? -1 : 1) * 0.003 * (365.256 / physics.orbitalPeriodDays),
+        radius: orbitRadius,
         rotSpeed: cfg.rotSpeed,
-        inclinationRad: incRad
+        inclinationRad,
+        eccentricity
       });
     }
 
@@ -555,60 +607,90 @@ export const CosmicOrbChart3D: React.FC<Props> = ({ chartData, onExploreEncyclop
 
     // Animation Loop
     let animId: number;
-    let tick = 0;
+    const clock = new THREE.Clock();
+    let telemetryElapsed = 0;
     let targetLookAt = new THREE.Vector3(0, 0, 0);
+    let earthAngle = THREE.MathUtils.degToRad(chartDataRef.current.planets.Surya.longitude + 180);
     let moonAngle = 0;
 
     const animate = () => {
       animId = requestAnimationFrame(animate);
-      tick++;
+      const deltaSeconds = Math.min(clock.getDelta(), 0.1);
+      const frameScale = deltaSeconds * 60;
+      telemetryElapsed += deltaSeconds;
 
-      sunMesh.rotation.y += 0.003;
-      haloMesh.rotation.y -= 0.001;
-      stars.rotation.y += 0.00004;
-      asteroidBelt.rotation.y += 0.0006;
+      sunMesh.rotation.y += 0.003 * frameScale;
+      haloMesh.rotation.y -= 0.001 * frameScale;
+      stars.rotation.y += 0.00004 * frameScale;
+      asteroidBelt.rotation.y += 0.0006 * frameScale;
 
       const liveTarget = getFocusedWorldPos();
-      targetLookAt.lerp(liveTarget, 0.12);
+      const cameraSmoothing = 1 - Math.exp(-8 * deltaSeconds);
+      targetLookAt.lerp(liveTarget, cameraSmoothing);
 
       const desiredCamPos = new THREE.Vector3(
         targetLookAt.x + camDistance * Math.sin(camTheta) * Math.sin(camPhi),
         targetLookAt.y + camDistance * Math.cos(camTheta),
         targetLookAt.z + camDistance * Math.sin(camTheta) * Math.cos(camPhi)
       );
-      camera.position.lerp(desiredCamPos, 0.09);
+      camera.position.lerp(desiredCamPos, cameraSmoothing);
       camera.lookAt(targetLookAt);
 
       if (isPlayingRef.current) {
         const mult = speedMultRef.current;
-        for (const node of planetNodes) {
-          node.angle += node.speed * mult;
-          node.group.position.x = Math.cos(node.angle) * node.radius;
-          node.group.position.z = Math.sin(node.angle) * node.radius;
-          node.group.position.y = Math.sin(node.angle) * Math.sin(node.inclinationRad) * 0.8;
-          node.mesh.rotation.y += node.rotSpeed * mult;
+        earthAngle += 0.003 * frameScale * mult;
+        earthOrbitGroup.position.copy(orbitPosition(
+          earthAngle,
+          earthOrbitRadius,
+          earthPhysics.eccentricity,
+          earthInclinationRad
+        ));
+        moonAngle += 0.003 * (365.256 / NASA_SOLAR_PHYSICS.Chandra.orbitalPeriodDays) * frameScale * mult;
+        const moonRadius = moonOrbitRadius * (1 - NASA_SOLAR_PHYSICS.Chandra.eccentricity ** 2) /
+          (1 + NASA_SOLAR_PHYSICS.Chandra.eccentricity * Math.cos(moonAngle));
+        moonMesh.position.set(Math.cos(moonAngle) * moonRadius, 0, Math.sin(moonAngle) * moonRadius);
+        earthMesh.rotation.y += 0.02 * frameScale * mult;
 
-          if (node.name === 'Chandra') {
-            moonAngle += 0.05 * mult;
-            moonMesh.position.set(Math.cos(moonAngle) * 1.2, 0, Math.sin(moonAngle) * 1.2);
-            earthMesh.rotation.y += 0.02 * mult;
-          }
+        for (const node of planetNodes) {
+          node.angle += node.speed * frameScale * mult;
+          node.group.position.copy(orbitPosition(
+            node.angle,
+            node.radius,
+            node.eccentricity,
+            node.inclinationRad
+          ));
+          node.mesh.rotation.y += node.rotSpeed * frameScale * mult;
         }
       }
 
-      if (tick % 5 === 0) {
+      if (telemetryElapsed >= 0.5) {
+        telemetryElapsed = 0;
         const telemetryMap: Record<string, { x: number; y: number; z: number; speedKmS: number }> = {};
         for (const node of planetNodes) {
           const phys = NASA_SOLAR_PHYSICS[node.name];
           const angle = Math.atan2(node.group.position.z, node.group.position.x);
-          const realAU = REAL_AU[node.name] ?? 1.0;
+          const realAU = node.name === 'Rahu' || node.name === 'Ketu' ? 1 : phys.semiMajorAxisAU;
           telemetryMap[node.name] = {
             x: Number((realAU * Math.cos(angle)).toFixed(3)),
-            y: Number(node.group.position.y.toFixed(3)),
+            y: Number((realAU * Math.sin(angle) * Math.sin(node.inclinationRad)).toFixed(3)),
             z: Number((realAU * Math.sin(angle)).toFixed(3)),
             speedKmS: phys ? phys.orbitalSpeedKmS : 30.0
           };
         }
+        const earthX = earthPhysics.semiMajorAxisAU * Math.cos(earthAngle);
+        const earthZ = earthPhysics.semiMajorAxisAU * Math.sin(earthAngle);
+        telemetryMap.Prithvi = {
+          x: Number(earthX.toFixed(3)),
+          y: Number((earthPhysics.semiMajorAxisAU * Math.sin(earthAngle) * Math.sin(earthInclinationRad)).toFixed(3)),
+          z: Number(earthZ.toFixed(3)),
+          speedKmS: earthPhysics.orbitalSpeedKmS
+        };
+        telemetryMap.Chandra = {
+          x: Number((earthX + NASA_SOLAR_PHYSICS.Chandra.semiMajorAxisAU * Math.cos(moonAngle)).toFixed(3)),
+          y: Number((earthPhysics.semiMajorAxisAU * Math.sin(earthAngle) * Math.sin(earthInclinationRad)).toFixed(3)),
+          z: Number((earthZ + NASA_SOLAR_PHYSICS.Chandra.semiMajorAxisAU * Math.sin(moonAngle)).toFixed(3)),
+          speedKmS: NASA_SOLAR_PHYSICS.Chandra.orbitalSpeedKmS
+        };
         setTelemetryPos(telemetryMap);
       }
 
@@ -648,7 +730,7 @@ export const CosmicOrbChart3D: React.FC<Props> = ({ chartData, onExploreEncyclop
       renderer.dispose();
       renderer.forceContextLoss();
     };
-  }, [chartData]);
+  }, []);
 
   const handlePlanetSelect = (p: PlanetName) => {
     setSelectedPlanet(p);
@@ -702,22 +784,17 @@ export const CosmicOrbChart3D: React.FC<Props> = ({ chartData, onExploreEncyclop
       <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
 
       {/* Top Header Bar: Clean, Zero-Overlap Controls */}
-      <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2 z-20 pointer-events-none">
+      <div className="absolute top-3 left-3 right-3 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-2 z-20 pointer-events-none">
         {/* Left: Motion badge & speed */}
         <div
-          onWheel={(e) => {
-            if (e.deltaY !== 0) {
-              e.currentTarget.scrollLeft += e.deltaY;
-            }
-          }}
-          className="flex items-center gap-1.5 pointer-events-auto flex-nowrap overflow-x-auto no-scrollbar"
+          className="flex w-full lg:max-w-[40%] flex-wrap items-center gap-1.5 pointer-events-auto"
         >
-          <div className="flex-shrink-0 flex items-center gap-2 bg-cosmic-950/90 border border-cosmic-gold/40 px-3 py-1.5 rounded-2xl backdrop-blur-md shadow-xl text-xs font-bold text-cosmic-gold">
+          <div className="flex-shrink-0 flex items-center gap-2 whitespace-nowrap bg-cosmic-950/90 border border-cosmic-gold/40 px-3 py-1.5 rounded-2xl backdrop-blur-md shadow-xl text-xs font-bold text-cosmic-gold">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-            <span>3D Real Live Solar System</span>
+            <span>NASA Data • Accelerated</span>
           </div>
 
-          <div className="flex items-center bg-cosmic-950/90 border border-slate-800 p-1 rounded-2xl backdrop-blur-md shadow-lg">
+          <div className="flex flex-shrink-0 items-center bg-cosmic-950/90 border border-slate-800 p-1 rounded-2xl backdrop-blur-md shadow-lg">
             <button
               type="button"
               onClick={() => setIsPlaying(!isPlaying)}
@@ -732,7 +809,7 @@ export const CosmicOrbChart3D: React.FC<Props> = ({ chartData, onExploreEncyclop
             <button
               type="button"
               onClick={() => setSpeedMultiplier(speedMultiplier === 1 ? 2 : speedMultiplier === 2 ? 5 : 1)}
-              className="px-2.5 py-1 text-xs font-bold text-cosmic-gold hover:text-white transition-colors cursor-pointer"
+              className="px-2.5 py-1 text-xs font-bold text-cosmic-gold hover:text-white transition-colors cursor-pointer whitespace-nowrap"
             >
               {speedMultiplier}x
             </button>
@@ -742,7 +819,7 @@ export const CosmicOrbChart3D: React.FC<Props> = ({ chartData, onExploreEncyclop
           <button
             type="button"
             onClick={handleReset}
-            className={`px-3 py-1.5 rounded-2xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border shadow-lg ${
+            className={`flex-shrink-0 whitespace-nowrap px-3 py-1.5 rounded-2xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border shadow-lg ${
               !selectedPlanet
                 ? 'bg-gradient-to-r from-cosmic-gold to-yellow-400 text-cosmic-950 border-white shadow-cosmic-gold/20'
                 : 'bg-cosmic-950/80 text-cosmic-gold border-cosmic-gold/50 hover:bg-cosmic-900'
@@ -755,7 +832,7 @@ export const CosmicOrbChart3D: React.FC<Props> = ({ chartData, onExploreEncyclop
 
           {/* Targeted Planet Indicator */}
           {selectedPlanet && (
-            <div className="flex items-center gap-1.5 bg-cosmic-900/90 border border-cosmic-gold/50 px-2.5 py-1 rounded-xl text-xs text-cosmic-gold font-bold">
+            <div className="flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap bg-cosmic-900/90 border border-cosmic-gold/50 px-2.5 py-1 rounded-xl text-xs text-cosmic-gold font-bold">
               <span>🎯 {PLANET_DATA[selectedPlanet].symbol} {tGraha(selectedPlanet)}</span>
               {isMacroZoomActive && (
                 <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded-md border border-emerald-500/40">
@@ -768,18 +845,13 @@ export const CosmicOrbChart3D: React.FC<Props> = ({ chartData, onExploreEncyclop
 
         {/* Center / Right: Non-Overlapping Tool Bar */}
         <div
-          onWheel={(e) => {
-            if (e.deltaY !== 0) {
-              e.currentTarget.scrollLeft += e.deltaY;
-            }
-          }}
-          className="flex items-center gap-1.5 pointer-events-auto flex-nowrap overflow-x-auto no-scrollbar"
+          className="flex w-full lg:max-w-[58%] flex-wrap items-center gap-1.5 pointer-events-auto lg:justify-end"
         >
           {/* Radar Distance Tool Toggle */}
           <button
             type="button"
             onClick={() => setActiveHudTool(prev => prev === 'radar' ? 'none' : 'radar')}
-            className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 border ${
+            className={`flex-shrink-0 whitespace-nowrap px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 border ${
               activeHudTool === 'radar'
                 ? 'bg-sky-600 text-white border-sky-300 shadow-lg shadow-sky-500/30'
                 : 'bg-cosmic-950/80 text-slate-300 border-slate-800 hover:border-slate-600'
@@ -794,7 +866,7 @@ export const CosmicOrbChart3D: React.FC<Props> = ({ chartData, onExploreEncyclop
           <button
             type="button"
             onClick={() => setActiveHudTool(prev => prev === 'asteroids' ? 'none' : 'asteroids')}
-            className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 border ${
+            className={`flex-shrink-0 whitespace-nowrap px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 border ${
               activeHudTool === 'asteroids'
                 ? 'bg-amber-600 text-white border-amber-300 shadow-lg shadow-amber-500/30'
                 : 'bg-cosmic-950/80 text-slate-300 border-slate-800 hover:border-slate-600'
@@ -809,7 +881,7 @@ export const CosmicOrbChart3D: React.FC<Props> = ({ chartData, onExploreEncyclop
           <button
             type="button"
             onClick={() => setActiveHudTool(prev => prev === 'zodiac' ? 'none' : 'zodiac')}
-            className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 border ${
+            className={`flex-shrink-0 whitespace-nowrap px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 border ${
               activeHudTool === 'zodiac'
                 ? 'bg-indigo-600 text-white border-indigo-300 shadow-lg shadow-indigo-500/30'
                 : 'bg-cosmic-950/80 text-slate-300 border-slate-800 hover:border-slate-600'
@@ -835,7 +907,7 @@ export const CosmicOrbChart3D: React.FC<Props> = ({ chartData, onExploreEncyclop
           </button>
 
           {/* Zoom In/Out & Reset */}
-          <div className="flex items-center bg-cosmic-950/90 border border-slate-800 p-1 rounded-2xl backdrop-blur-md shadow-lg">
+          <div           className="flex flex-shrink-0 items-center bg-cosmic-950/90 border border-slate-800 p-1 rounded-2xl backdrop-blur-md shadow-lg">
             <button
               type="button"
               onClick={() => controlsRef.current?.zoom(0.85)}
@@ -866,7 +938,7 @@ export const CosmicOrbChart3D: React.FC<Props> = ({ chartData, onExploreEncyclop
           <button
             type="button"
             onClick={() => setShowBigBangLive(true)}
-            className="px-3.5 py-1.5 rounded-2xl text-xs font-bold bg-gradient-to-r from-amber-500 to-cosmic-gold text-cosmic-950 shadow-lg shadow-amber-500/25 border border-white hover:scale-105 transition-all cursor-pointer flex items-center gap-1.5 animate-pulse"
+            className="flex-shrink-0 whitespace-nowrap px-3.5 py-1.5 rounded-2xl text-xs font-bold bg-gradient-to-r from-amber-500 to-cosmic-gold text-cosmic-950 shadow-lg shadow-amber-500/25 border border-white hover:scale-105 transition-all cursor-pointer flex items-center gap-1.5 animate-pulse"
           >
             <span>💥</span>
             <span>{language === 'or' ? 'ବିଗ୍ ବ୍ୟାଙ୍ଗ୍ ଲାଇଭ୍' : 'Big Bang Live'}</span>

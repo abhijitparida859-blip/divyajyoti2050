@@ -157,22 +157,22 @@ export const MilanTimePicker: React.FC<{ value: string; onChange: (v: string) =>
   const label = { h: language === 'or' ? 'ଘଣ୍ଟା' : language === 'hi' ? 'घंटा' : 'Hr', m: language === 'or' ? 'ମିନିଟ' : language === 'hi' ? 'मिनट' : 'Min' };
 
   return (
-    <div className="w-full bg-cosmic-950 border border-slate-700 rounded-xl px-3 py-2.5">
-      <div className="flex items-center gap-1.5">
-        <Clock className="w-3.5 h-3.5 text-cosmic-gold shrink-0" />
-        <div className="flex items-center gap-1 flex-1">
+    <div className="w-full min-w-0 rounded-xl border border-slate-700 bg-cosmic-950 px-2 py-2.5">
+      <div className="flex min-w-0 items-center gap-1">
+        <Clock className="h-3 w-3 shrink-0 text-cosmic-gold" />
+        <div className="flex min-w-0 flex-1 items-center gap-0.5">
           <select value={dispH} onChange={e => setTime(Number(e.target.value), dispM, isPM)} aria-label={label.h}
-            className="bg-cosmic-900 border border-slate-700 rounded-lg px-1.5 py-1 text-xs text-slate-100 font-bold focus:outline-none focus:border-cosmic-gold/60">
+            className="w-12 shrink-0 rounded-lg border border-slate-700 bg-cosmic-900 px-1 py-1 text-[11px] font-bold text-slate-100 focus:border-cosmic-gold/60 focus:outline-none">
             {hours.map(h => <option key={h} value={h}>{String(h).padStart(2, '0')}</option>)}
           </select>
-          <span className="text-cosmic-gold font-black">:</span>
+          <span className="shrink-0 text-cosmic-gold font-black">:</span>
           <select value={dispM} onChange={e => setTime(dispH, Number(e.target.value), isPM)} aria-label={label.m}
-            className="bg-cosmic-900 border border-slate-700 rounded-lg px-1.5 py-1 text-xs text-slate-100 font-bold focus:outline-none focus:border-cosmic-gold/60">
+            className="w-12 shrink-0 rounded-lg border border-slate-700 bg-cosmic-900 px-1 py-1 text-[11px] font-bold text-slate-100 focus:border-cosmic-gold/60 focus:outline-none">
             {mins.map(m => <option key={m} value={m}>{String(m).padStart(2, '0')}</option>)}
           </select>
-          <div className="flex rounded-lg overflow-hidden border border-slate-700 ml-0.5">
-            <button type="button" onClick={() => setTime(dispH, dispM, false)} className={`px-2 py-1 text-[10px] font-black ${!isPM ? 'bg-cosmic-gold text-cosmic-950' : 'bg-cosmic-900 text-slate-300'}`}>AM</button>
-            <button type="button" onClick={() => setTime(dispH, dispM, true)} className={`px-2 py-1 text-[10px] font-black ${isPM ? 'bg-cosmic-gold text-cosmic-950' : 'bg-cosmic-900 text-slate-300'}`}>PM</button>
+          <div className="ml-0.5 flex shrink-0 overflow-hidden rounded-lg border border-slate-700">
+            <button type="button" onClick={() => setTime(dispH, dispM, false)} className={`px-1.5 py-1 text-[9px] font-black sm:px-2 sm:text-[10px] ${!isPM ? 'bg-cosmic-gold text-cosmic-950' : 'bg-cosmic-900 text-slate-300'}`}>AM</button>
+            <button type="button" onClick={() => setTime(dispH, dispM, true)} className={`px-1.5 py-1 text-[9px] font-black sm:px-2 sm:text-[10px] ${isPM ? 'bg-cosmic-gold text-cosmic-950' : 'bg-cosmic-900 text-slate-300'}`}>PM</button>
           </div>
         </div>
       </div>
@@ -750,5 +750,3 @@ export const MilanLocationSearch: React.FC<{ value: PlaceLocation; onChange: (l:
     </div>
   );
 };
-
-

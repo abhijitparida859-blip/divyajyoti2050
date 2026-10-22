@@ -11,6 +11,8 @@ interface Props {
   brideBirth: string;
   groomCity?: string;
   brideCity?: string;
+  groomCoordinates: string;
+  brideCoordinates: string;
 }
 
 /**
@@ -27,6 +29,8 @@ export const MilanPrintSheet: React.FC<Props> = ({
   brideBirth,
   groomCity,
   brideCity,
+  groomCoordinates,
+  brideCoordinates,
 }) => {
   const { language, formatNumber, tNakshatra, tRashi, tVerdict } = useI18n();
   const pick = (o: { en: string; hi: string; or: string }) => o[language as 'or'] || o.en;
@@ -46,9 +50,25 @@ export const MilanPrintSheet: React.FC<Props> = ({
     if (s === 'mixed') return 'status-badge badge-mixed';
     return 'status-badge badge-dosha';
   };
+  const overallStatus = result.totalScore >= 28
+    ? 'auspicious'
+    : result.totalScore >= 21
+      ? 'good'
+      : result.totalScore >= 18
+        ? 'mixed'
+        : 'dosha';
 
   return (
-    <div className="milan-report-sheet vedic-book kundali-print-sheet bg-white text-black">
+    <div
+      className="milan-report-sheet vedic-book kundali-print-sheet bg-white text-black"
+      style={{
+        fontFamily: language === 'or'
+          ? "'Noto Sans Oriya', sans-serif"
+          : language === 'hi'
+            ? "'Noto Sans Devanagari', sans-serif"
+            : "'Outfit', 'Noto Sans Oriya', sans-serif"
+      }}
+    >
       {/* ================= PAGE 1 ================= */}
       <div className="milan-sheet-page milan-sheet-page-1">
         <div className="milan-page-border-frame">
@@ -101,9 +121,9 @@ export const MilanPrintSheet: React.FC<Props> = ({
                 </tr>
               </thead>
               <tbody>
-                <tr><td className="font-bold bg-amber-50/50">{language === 'or' ? 'ଜନ୍ମ ତାରିଖ ଓ ସମୟ' : 'Birth Date & Time'}</td><td>{groomBirth}</td><td>{brideBirth}</td></tr>
+                <tr><td className="font-bold bg-amber-50/50">{language === 'or' ? 'ଜନ୍ମ ତାରିଖ ଓ ସମୟ' : language === 'hi' ? 'जन्म तिथि और समय' : 'Birth Date & Time'}</td><td>{groomBirth}</td><td>{brideBirth}</td></tr>
                 {(groomCity || brideCity) && (
-                  <tr><td className="font-bold bg-amber-50/50">{language === 'or' ? 'ଜନ୍ମ ସ୍ଥାନ' : 'Birth Place'}</td><td>{groomCity || '—'}</td><td>{brideCity || '—'}</td></tr>
+                  <tr><td className="font-bold bg-amber-50/50">{language === 'or' ? 'ଜନ୍ମ ସ୍ଥାନ ଓ ଅକ୍ଷାଂଶ/ଦ୍ରାଘିମା' : language === 'hi' ? 'जन्म स्थान व निर्देशांक' : 'Birth Place & Coordinates'}</td><td>{groomCity || '—'}<br />{groomCoordinates}</td><td>{brideCity || '—'}<br />{brideCoordinates}</td></tr>
                 )}
                 <tr><td className="font-bold bg-amber-50/50">{language === 'or' ? 'ଲଗ୍ନ ରାଶି' : 'Lagna (Ascendant)'}</td><td>{groomLagna}</td><td>{brideLagna}</td></tr>
                 <tr><td className="font-bold bg-amber-50/50">{language === 'or' ? 'ଚନ୍ଦ୍ର ରାଶି' : 'Moon Sign (Rashi)'}</td><td>{tRashi(result.groomMoon.sign)}</td><td>{tRashi(result.brideMoon.sign)}</td></tr>
@@ -112,6 +132,13 @@ export const MilanPrintSheet: React.FC<Props> = ({
                 <tr><td className="font-bold bg-amber-50/50">{language === 'or' ? 'ଗୋତ୍ର' : 'Gotra'}</td><td>{result.gotra.gotraGroom}</td><td>{result.gotra.gotraBride}</td></tr>
               </tbody>
             </table>
+            <div className="milan-note-box">
+              {language === 'or'
+                ? 'ଗଣନା ଆଧାର: ଦିଆଯାଇଥିବା ସ୍ଥାନୀୟ ଜନ୍ମ ସମୟ, ସମୟ-ଅଞ୍ଚଳ ଓ ନିର୍ଦ୍ଦେଶାଙ୍କରୁ ଅଫଲାଇନ୍ ନିରୟଣ ଗଣନା (ଲାହିରୀ ଅୟନାଂଶ); ଅଷ୍ଟକୂଟ ନିୟମ ଉପରେ ମେଳକ। ଫଳାଫଳ ପାରମ୍ପରିକ ଜ୍ୟୋତିଷୀୟ ମାର୍ଗଦର୍ଶନ।'
+                : language === 'hi'
+                  ? 'गणना आधार: दिए गए स्थानीय जन्म समय, समय-क्षेत्र और निर्देशांकों से ऑफलाइन निरयन गणना (लाहिड़ी अयनांश); मिलान अष्टकूट नियमों पर आधारित। परिणाम पारंपरिक ज्योतिषीय मार्गदर्शन है।'
+                  : 'Calculation basis: offline sidereal calculation from the entered local birth time, time zone and coordinates (Lahiri ayanamsha); matching follows the displayed Ashtakoota rules. Interpret as traditional astrological guidance.'}
+            </div>
             <div className="milan-note-box">
               <b>{language === 'or' ? 'ରଜ୍ଜୁ ଓ ବେଧ ସ୍ଥିତି:' : 'Rajju & Vedha:'}</b> {pick(result.rajjuVedha.note)} &bull; <b>{language === 'or' ? 'ଗୋତ୍ର ବିଚାର:' : 'Gotra:'}</b> {pick(result.gotra.note)}
             </div>
@@ -147,12 +174,22 @@ export const MilanPrintSheet: React.FC<Props> = ({
                   <td style={{ background: '#fef3c7', color: '#78350f' }}>{language === 'or' ? 'ସର୍ବମୋଟ ଗୁଣ' : 'Total Guna'}</td>
                   <td style={{ textAlign: 'center', color: '#78350f', fontSize: '11px' }}>{formatNumber(result.totalScore)} / {formatNumber(36)}</td>
                   <td style={{ textAlign: 'center' }}>
-                    <span className="status-badge badge-auspicious">
+                    <span className={statusBadgeClass(overallStatus)}>
                       {tVerdict(result.verdict)}
                     </span>
                   </td>
                   <td style={{ color: '#78350f' }}>
-                    {language === 'or' ? `ଶାସ୍ତ୍ରୋକ୍ତ ୧୮ ଗୁଣରୁ ଅଧିକ (${formatNumber(result.percentage)}%) — ବିବାହ ପାଇଁ ଅତ୍ୟନ୍ତ ପ୍ରଶସ୍ତ।` : `Above 18 Gunas (${formatNumber(result.percentage)}%) — Approved for Matrimony.`}
+                    {language === 'or'
+                      ? result.totalScore >= 18
+                        ? `ପାରମ୍ପରିକ ୧୮-ଗୁଣ ସୀମା ପୂରଣ (${formatNumber(result.percentage)}%)। ଏହା ଜ୍ୟୋତିଷୀୟ ମେଳକ ସୂଚକ, ନିଶ୍ଚିତ ଫଳ ନୁହେଁ।`
+                        : `ପାରମ୍ପରିକ ୧୮-ଗୁଣ ସୀମା ପୂରଣ ହୋଇନାହିଁ (${formatNumber(result.percentage)}%)। ବିସ୍ତୃତ ଆଲୋଚନା କରନ୍ତୁ।`
+                      : language === 'hi'
+                        ? result.totalScore >= 18
+                          ? `पारंपरिक 18-गुण सीमा पूरी (${formatNumber(result.percentage)}%)। यह ज्योतिषीय मिलान संकेतक है, निश्चित परिणाम नहीं।`
+                          : `पारंपरिक 18-गुण सीमा पूरी नहीं हुई (${formatNumber(result.percentage)}%)। विस्तृत विचार-विमर्श करें।`
+                        : result.totalScore >= 18
+                          ? `Traditional 18-guna threshold reached (${formatNumber(result.percentage)}%). This is an astrological matching indicator, not a guarantee.`
+                          : `Traditional 18-guna threshold not reached (${formatNumber(result.percentage)}%). Consider a detailed consultation.`}
                   </td>
                 </tr>
               </tbody>
@@ -274,7 +311,7 @@ export const MilanPrintSheet: React.FC<Props> = ({
 
           {/* Page 2 Authentication Seal & Footer */}
           <div className="footer-seal">
-            ✦ {language === 'or' ? 'ଦିବ୍ୟଜ୍ୟୋତି କାଳିଆ ପାଞ୍ଜି' : language === 'hi' ? 'दिव्यज्योति कालिया पंचांग' : 'DivyaJyoti Kalia Panjika'} • 100% Offline Parashari Ganana • Authentic Ephemeris • {language === 'or' ? 'ପୃଷ୍ଠା ୨ / ୨' : 'Page 2 / 2'} ✦
+            ✦ {language === 'or' ? 'ଦିବ୍ୟଜ୍ୟୋତି କାଳିଆ ପାଞ୍ଜି' : language === 'hi' ? 'दिव्यज्योति कालिया पंचांग' : 'DivyaJyoti Kalia Panjika'} • {language === 'or' ? 'ଲାହିରୀ ଅୟନାଂଶ • ଅଫଲାଇନ୍ ଗଣନା' : language === 'hi' ? 'लाहिड़ी अयनांश • ऑफलाइन गणना' : 'Lahiri Ayanamsha • Offline Calculation'} • {language === 'or' ? 'ପୃଷ୍ଠା ୨ / ୨' : language === 'hi' ? 'पृष्ठ २ / २' : 'Page 2 / 2'} ✦
           </div>
         </div>
       </div>

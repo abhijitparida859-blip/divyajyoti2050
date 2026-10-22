@@ -277,7 +277,7 @@ select optgroup {
 
 /* ============ KUNDALI MILAN COMPACT 2-PAGE PRINT & PDF SHEET ============ */
 .milan-report-sheet {
-  font-family: 'Noto Serif Oriya', 'Noto Sans Oriya', 'Nirmala UI', sans-serif !important;
+  font-family: 'Noto Serif Oriya', 'Noto Sans Oriya', 'Nirmala UI', sans-serif;
   width: 100%;
   max-width: 210mm;
   margin: 0 auto;
@@ -298,14 +298,16 @@ select optgroup {
   width: 794px;
   min-width: 794px;
   max-width: 794px;
+  height: 1123px;
   min-height: 1123px;
-  padding: 12px 16px;
+  padding: 18px 20px;
   background: #ffffff;
   color: #1c1917;
   position: relative;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  overflow: hidden;
 }
 
 .milan-sheet-page-1 {
@@ -323,8 +325,9 @@ select optgroup {
   outline: 1px solid #d97706;
   outline-offset: -5px;
   border-radius: 8px;
-  padding: 10px 12px 8px 12px;
-  min-height: 100%;
+  padding: 14px 16px 12px;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -335,7 +338,7 @@ select optgroup {
 .milan-header-box {
   border: 1.5px solid #d97706;
   background: linear-gradient(180deg, #fffbeb 0%, #fef3c7 100%);
-  padding: 7px 12px;
+  padding: 10px 14px;
   border-radius: 6px;
   text-align: center;
   margin-bottom: 8px;
@@ -360,7 +363,7 @@ select optgroup {
 }
 
 .milan-sec-head {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 900;
   color: #78350f;
   border-bottom: 1.8px solid #b45309;
@@ -380,8 +383,8 @@ select optgroup {
 .milan-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 10px;
-  margin: 2px 0 5px;
+  font-size: 11px;
+  margin: 3px 0 6px;
   table-layout: fixed;
 }
 
@@ -389,18 +392,18 @@ select optgroup {
   background: #fef3c7;
   color: #78350f;
   border: 1.2px solid #b45309;
-  padding: 3px 6px;
+  padding: 4px 6px;
   font-weight: 800;
   text-align: left;
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .milan-table td {
   border: 1px solid #cbd5e1;
-  padding: 2.5px 6px;
+  padding: 3.5px 6px;
   vertical-align: middle;
   color: #1e293b;
-  line-height: 1.25;
+  line-height: 1.35;
 }
 
 .milan-table tr:nth-child(even) td {
@@ -413,8 +416,8 @@ select optgroup {
 }
 
 .milan-note-box {
-  font-size: 9.5px;
-  line-height: 1.35;
+  font-size: 10px;
+  line-height: 1.4;
   background: #fffbeb;
   border: 1px solid #fcd34d;
   border-left: 3.5px solid #d97706;
@@ -468,7 +471,7 @@ select optgroup {
 
 .footer-seal {
   text-align: center;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: bold;
   color: #78350f;
   padding-top: 6px;
@@ -481,7 +484,7 @@ select optgroup {
 .milan-charts-print-grid {
   display: flex !important;
   flex-direction: column !important;
-  gap: 4px !important;
+  gap: 6px !important;
   margin: 2px 0 4px !important;
 }
 
@@ -503,7 +506,7 @@ select optgroup {
 }
 
 .milan-chart-card svg {
-  max-height: 96px !important;
+  max-height: 108px !important;
 }
 
 /* ============ MOBILE SMOOTHNESS & PREVIEW PERFORMANCE (screen only) ============ */
