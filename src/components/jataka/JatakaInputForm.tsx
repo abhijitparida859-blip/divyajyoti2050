@@ -114,35 +114,27 @@ export const JatakaInputForm: React.FC<Props> = ({
       <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
 
       {/* Top Bar: 3D Holographic Lagna Avatar, Native Info & 3D Chart Selectors */}
-      <div className="relative z-10 grid grid-cols-1 gap-5 border-b border-slate-800/90 pb-6 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center xl:gap-6">
+      <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5 border-b border-slate-800/90 pb-6">
         {/* Left: 3D Holographic Lagna Avatar Badge + Native Title */}
-        <div className="flex min-w-0 items-start gap-3 sm:items-center sm:gap-4">
+        <div className="flex items-center gap-4">
           {/* 3D Zodiac Avatar Emblem with Metallic Bevel & Elemental Pulse */}
-          <div
-            className={`group relative mt-1 flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border-2 bg-gradient-to-br ${lagnaSpec.accentGradient} p-1 shadow-2xl transition-transform duration-300 hover:scale-105 sm:mt-0 sm:h-[4.5rem] sm:w-[4.5rem] ${lagnaSpec.borderGlow}`}
-            style={{ perspective: '240px' }}
-          >
-            <div className="absolute -inset-1 rounded-[1.15rem] border border-cosmic-gold/35 opacity-70 transition-transform duration-700 group-hover:rotate-12 group-hover:scale-110" />
-            <div className="absolute inset-[3px] rounded-[0.9rem] border border-white/20 shadow-[inset_0_1px_3px_rgba(255,255,255,0.35)]" />
-            <div
-              className="absolute left-1/2 top-1/2 h-[125%] w-[62%] -translate-x-1/2 -translate-y-1/2 rounded-[50%] border border-white/35 opacity-60 transition-transform duration-700 group-hover:rotate-[-18deg]"
-              style={{ transform: 'translate(-50%, -50%) rotateX(68deg) rotateZ(-28deg)' }}
-            />
-            <span className="absolute right-1 top-[18%] h-1.5 w-1.5 rounded-full bg-white shadow-[0_0_8px_2px_rgba(255,255,255,0.8)]" />
-            <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-[radial-gradient(circle_at_35%_25%,rgba(255,255,255,0.2),transparent_38%),linear-gradient(145deg,rgba(15,23,42,0.72),rgba(2,6,23,0.96))] shadow-[inset_0_2px_8px_rgba(0,0,0,0.65)]">
-              <span className="select-none text-2xl drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] sm:text-3xl">
+          <div className={`relative w-16 h-16 sm:w-18 sm:h-18 rounded-2xl bg-gradient-to-br ${lagnaSpec.accentGradient} p-1 shadow-2xl ${lagnaSpec.borderGlow} border-2 flex items-center justify-center shrink-0 group transition-transform duration-300 hover:scale-105`}>
+            <div className="w-full h-full rounded-xl bg-cosmic-950/80 backdrop-blur-md flex flex-col items-center justify-center relative overflow-hidden shadow-inner">
+              <span className="text-2xl sm:text-3xl select-none filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
                 {lagnaSpec.glyph}
               </span>
-              <span className="text-[8px] font-bold uppercase tracking-tighter text-slate-200 sm:text-[9px]">
+              <span className="text-[9px] font-bold text-slate-200 uppercase tracking-tighter">
                 {lagnaSpec.or}
               </span>
             </div>
+            {/* Spinning Golden Orbit Ring Accent */}
+            <div className="absolute -inset-1 rounded-2xl border border-cosmic-gold/40 animate-pulse pointer-events-none" />
           </div>
 
-          <div className="min-w-0 flex-1">
-            <div className="mb-1.5 flex min-w-0 items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.12em] text-cosmic-gold sm:gap-2 sm:text-[10px] sm:tracking-wider">
-              <Sparkles className="h-3.5 w-3.5 shrink-0 text-cosmic-saffron" />
-              <span className="min-w-0 leading-relaxed">
+          <div>
+            <div className="flex items-center gap-2 text-cosmic-gold text-xs font-semibold uppercase tracking-wider mb-1">
+              <Sparkles className="w-4 h-4 text-cosmic-saffron animate-spin-slow" />
+              <span>
                 {language === 'or'
                   ? '୧୦୦% ପ୍ରାମାଣିକ ବୈଦିକ ପାଞ୍ଜି ଇଞ୍ଜିନ୍'
                   : language === 'hi'
@@ -150,22 +142,22 @@ export const JatakaInputForm: React.FC<Props> = ({
                   : '100% Real Panjika Astronomical Engine'}
               </span>
             </div>
-            <h2 className="min-w-0 text-xl font-extrabold leading-tight tracking-tight text-slate-100 sm:text-2xl lg:text-3xl">
-              <span className="break-words font-serif">{nativeName}</span>
-              <span className="mx-1.5 hidden text-cosmic-gold/80 font-normal sm:inline">—</span>
-              <span className="mt-1 block text-sm font-medium leading-snug text-slate-300 sm:mt-0 sm:inline sm:text-base lg:text-xl">
+            <h2 className="text-2xl sm:text-3xl font-extrabold font-serif text-slate-100 tracking-tight flex items-center gap-2">
+              <span>{nativeName}</span>
+              <span className="text-cosmic-gold font-normal">—</span>
+              <span className="text-slate-300 font-normal text-xl sm:text-2xl">
                 {language === 'or' ? 'ବୈଦିକ ଜନ୍ମ କୁଣ୍ଡଳୀ' : language === 'hi' ? 'वैदिक जन्म कुण्डली' : 'Vedic Horoscope'}
               </span>
             </h2>
-            <div className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5 text-[10px] text-slate-300 sm:gap-2 sm:text-xs">
-              <span className="max-w-full rounded-full border border-cosmic-gold/35 bg-cosmic-950/80 px-2.5 py-1 font-bold text-cosmic-gold shadow-sm">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300 mt-1.5">
+              <span className="bg-cosmic-950/90 border border-cosmic-gold/40 text-cosmic-gold px-2.5 py-0.5 rounded-full font-bold shadow-sm">
                 {t('ascendant')}: {tRashi(ascSign)} ({formatNumber(ascDegree.toFixed(2))}°)
               </span>
-              <span className="max-w-full rounded-full border border-slate-700/80 bg-slate-900/70 px-2.5 py-1 font-medium text-slate-300">
+              <span className="bg-slate-900/80 border border-slate-700/80 px-2 py-0.5 rounded-full text-slate-300 font-medium">
                 {lagnaSpec.elementOr} • {language === 'or' ? 'ଅଧିପତି' : 'Lord'}: {lagnaSpec.lordOr}
               </span>
-              <span className="min-w-0 break-words text-slate-400 sm:basis-full xl:basis-auto">
-                {selectedLocation.name[language]}{selectedLocation.district ? ` · ${selectedLocation.district[language]}` : ''} · {selectedLocation.state[language]}
+              <span className="text-slate-400">
+                • {selectedLocation.name[language]} {selectedLocation.district ? `(${selectedLocation.district[language]})` : ''} ({selectedLocation.state[language]})
               </span>
             </div>
           </div>
