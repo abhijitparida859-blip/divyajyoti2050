@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { useI18n } from '../../localization/i18n';
+import { getLocalizedNativeName } from '../../localization/nameTransliteration';
 import { BirthChartData } from '../../types/jataka';
 import { calculateYearlyForecast } from '../../core/jataka/yearly_forecast_engine';
 import { getDashaPhala } from '../../core/jataka/yearly_forecast_engine';
@@ -19,6 +20,7 @@ interface Props {
 
 export const KundaliPrintView: React.FC<Props> = ({ chartData, hideHeader = false, mode = 'full', year: chosenYear }) => {
   const { language, tRashi, tGraha, tNakshatra, formatNumber } = useI18n();
+  const displayNativeName = getLocalizedNativeName(chartData.nativeName, language) || chartData.nativeName;
   const selYear = chosenYear ?? new Date().getFullYear();
   // Full/short editions start from today; the "year" edition covers the chosen calendar year Jan-01 → Dec-31
   const yearData = useMemo(
@@ -70,7 +72,7 @@ export const KundaliPrintView: React.FC<Props> = ({ chartData, hideHeader = fals
             <h1 className="book-title">🛕 DivyaJyoti Kalia Panjika<br />Vedic Kundali Grantha</h1>
             <div className="text-sm mt-1">ଦିବ୍ୟଜ୍ୟୋତି କାଳିଆ ପାଞ୍ଜି • ବୈଦିକ କୁଣ୍ଡଳୀ ଗ୍ରନ୍ଥ</div>
             <div className="book-rule" />
-            <div className="text-4xl font-serif font-black mt-3">{chartData.nativeName}</div>
+            <div className="text-4xl font-serif font-black mt-3">{displayNativeName}</div>
             <div className="text-base mt-1">{rashiGlyph[chartData.ascendantSign]} {tRashi(chartData.ascendantSign)} Lagna • {rashiGlyph[chartData.planets.Chandra.sign]} {tRashi(chartData.planets.Chandra.sign)} Rashi</div>
             <div className="book-cover-grid">
               <div><b>Janma Tithi</b><br />{chartData.dateTime.slice(0, 10)}</div>
@@ -117,7 +119,7 @@ export const KundaliPrintView: React.FC<Props> = ({ chartData, hideHeader = fals
           <div className="book-chapter-head">अध्याय १ — जन्मविवरण एवं जन्म पञ्चाङ्ग<br /><span className="chapter-sub">Chapter 1 — Birth Profile & Janma Panchanga (5 Pillars)</span></div>
           <table className="book-table">
             <tbody>
-              <tr><td className="k">नाम / Name</td><td>{chartData.nativeName}</td><td className="k">लिंग / Gender</td><td>{chartData.gender}</td></tr>
+              <tr><td className="k">{language === 'or' ? 'ନାମ / Name' : 'नाम / Name'}</td><td>{displayNativeName}</td><td className="k">{language === 'or' ? 'ଲିଙ୍ଗ / Gender' : 'लिंग / Gender'}</td><td>{chartData.gender}</td></tr>
               <tr><td className="k">जन्म तिथि / Date</td><td>{chartData.dateTime.slice(0, 10)}</td><td className="k">स्थान / Place</td><td>{chartData.birthPlace}</td></tr>
               <tr><td className="k">अक्षांश / Latitude</td><td>{chartData.latitude}°</td><td className="k">देशांतर / Longitude</td><td>{chartData.longitude}°</td></tr>
               <tr><td className="k">लग्न / Lagna</td><td>{tRashi(chartData.ascendantSign)} ({chartData.ascendantDegree}°)</td><td className="k">चन्द्र राशि / Moon</td><td>{tRashi(chartData.planets.Chandra.sign)} • {tNakshatra(chartData.planets.Chandra.nakshatra)}-{chartData.planets.Chandra.pada}</td></tr>
@@ -164,7 +166,7 @@ export const KundaliPrintView: React.FC<Props> = ({ chartData, hideHeader = fals
               );
             })}
             <div className="chouka-center">
-              <div className="text-sm font-black">🛕 {chartData.nativeName}</div>
+              <div className="text-sm font-black">🛕 {displayNativeName}</div>
               <div className="text-[10px]">{chartData.dateTime.slice(0, 10)} • {chartData.birthPlace}</div>
               <div className="text-[10px] font-bold">{tRashi(chartData.ascendantSign)} Lagna ({chartData.ascendantDegree}°)</div>
               <div className="text-[9px] mt-0.5">EAST / ODIYA CHOUKA STYLE</div>

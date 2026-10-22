@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useI18n } from '../../localization/i18n';
+import { getLocalizedNativeName } from '../../localization/nameTransliteration';
 import { BirthChartData } from '../../types/jataka';
 import { FileText, BookOpen, CalendarDays, MessageCircle, Send, Mail, Link2, Share2, Printer, Check, Globe, Download } from 'lucide-react';
 
@@ -24,8 +25,9 @@ export const PrintControls: React.FC<Props> = ({ chartData, mode, year, onModeCh
   const [copied, setCopied] = useState(false);
   const [pdfBusy, setPdfBusy] = useState<'none' | 'download' | 'share'>('none');
 
+  const localizedNative = getLocalizedNativeName(chartData.nativeName, language) || chartData.nativeName;
   const url = typeof window !== 'undefined' ? window.location.href : '';
-  const title = `🛕 DivyaJyoti Kundali — ${chartData.nativeName}`;
+  const title = `🛕 DivyaJyoti Kundali — ${localizedNative}`;
   const summary = `${title} • ${tRashi(chartData.ascendantSign)} Lagna • ${tRashi(chartData.planets.Chandra.sign)} Rashi • Vedic Kundali Grantha (PDF-ready)`;
   const enc = encodeURIComponent;
   const open = (u: string) => window.open(u, '_blank', 'noopener,noreferrer');

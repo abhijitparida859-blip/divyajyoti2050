@@ -1,6 +1,7 @@
 import { createPortal } from 'react-dom';
 import React, { useState, useRef, useEffect } from 'react';
 import { useI18n } from '../../localization/i18n';
+import { getLocalizedNativeName } from '../../localization/nameTransliteration';
 import { calculateBirthChart, parseDateTimeWithTimezone } from '../../core/jataka/kundali_engine';
 import { ODISHA_COMPREHENSIVE_LOCATIONS, PlaceLocation } from '../../core/jataka/odisha_geography_db';
 import { BirthChartData, VargaType } from '../../types/jataka';
@@ -97,8 +98,9 @@ export const KundaliRenderer: React.FC = () => {
   // Real 100% dynamic calculation with exact local timezone conversion
   const chartData: BirthChartData = React.useMemo(() => {
     const trueUTC = parseDateTimeWithTimezone(birthDateStr, birthTimeStr, selectedLocation.timezone);
+    const localizedName = getLocalizedNativeName(nativeName, language) || nativeName;
     return calculateBirthChart(
-      nativeName,
+      localizedName,
       trueUTC,
       selectedLocation.latitude,
       selectedLocation.longitude,

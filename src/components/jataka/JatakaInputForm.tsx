@@ -1,5 +1,6 @@
-import React, { useRef } from 'react';
+import React, { useRef, useMemo } from 'react';
 import { useI18n } from '../../localization/i18n';
+import { getLocalizedNativeName, transliterateName } from '../../localization/nameTransliteration';
 import { PlaceLocation } from '../../core/jataka/odisha_geography_db';
 import { LocationSearchBox } from './LocationSearchBox';
 import { User, Calendar, Clock, Sparkles, Orbit, Compass, Flame, Droplets, Wind, Layers } from 'lucide-react';
@@ -75,6 +76,9 @@ export const JatakaInputForm: React.FC<Props> = ({
   const { t, formatNumber, tRashi, language } = useI18n();
   const dateInputRef = useRef<HTMLInputElement>(null);
 
+  // Live trilingual transliteration of native name
+  const trilingualName = useMemo(() => transliterateName(nativeName), [nativeName]);
+
   // Parse hour, minute, am/pm for advanced time picker
   const [hours, minutes] = birthTimeStr.split(':').map(Number);
   const isPM = hours >= 12;
@@ -143,7 +147,7 @@ export const JatakaInputForm: React.FC<Props> = ({
               </span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-extrabold font-serif text-slate-100 tracking-tight flex items-center gap-2">
-              <span>{nativeName}</span>
+              <span>{getLocalizedNativeName(nativeName, language) || nativeName}</span>
               <span className="text-cosmic-gold font-normal">—</span>
               <span className="text-slate-300 font-normal text-xl sm:text-2xl">
                 {language === 'or' ? 'ବୈଦିକ ଜନ୍ମ କୁଣ୍ଡଳୀ' : language === 'hi' ? 'वैदिक जन्म कुण्डली' : 'Vedic Horoscope'}
@@ -279,10 +283,32 @@ export const JatakaInputForm: React.FC<Props> = ({
               value={nativeName}
               maxLength={80}
               autoComplete="off"
+              placeholder="e.g. Abhijit Parida"
               onChange={(e) => setNativeName(e.target.value.replace(/[\u0000-\u001F\u007F]/g, '').slice(0, 80))}
               className="w-full bg-[#050811] border border-cosmic-gold/35 focus:border-cosmic-gold focus:ring-1 focus:ring-cosmic-gold/40 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 font-bold focus:outline-none shadow-inner"
             />
           </div>
+          {/* Live Trilingual Script Preview Pill Bar */}
+          {nativeName.trim().length > 0 && (
+            <div className="mt-2 p-2 bg-[#030712]/90 border border-cosmic-gold/25 rounded-xl flex flex-wrap items-center gap-1.5 shadow-sm text-[11px]">
+              <span className="text-[10px] font-bold text-cosmic-saffron uppercase tracking-wider flex items-center gap-1 mr-0.5">
+                <span>🪔</span>
+                <span>{language === 'or' ? 'ତ୍ରୈଭାଷିକ' : language === 'hi' ? 'त्रैभाषिक' : 'Trilingual'}:</span>
+              </span>
+              <span className="inline-flex items-center gap-1 bg-[#0a1128] border border-cosmic-gold/30 rounded-lg px-2 py-0.5 text-slate-100">
+                <span className="text-[9px] text-cosmic-gold font-bold">ଓଡ଼ିଆ:</span>
+                <span className="font-semibold text-cosmic-gold">{trilingualName.or}</span>
+              </span>
+              <span className="inline-flex items-center gap-1 bg-[#0a1128] border border-slate-700/80 rounded-lg px-2 py-0.5 text-slate-200">
+                <span className="text-[9px] text-amber-300 font-bold">हिन्दी:</span>
+                <span className="font-semibold text-slate-100">{trilingualName.hi}</span>
+              </span>
+              <span className="inline-flex items-center gap-1 bg-[#0a1128] border border-slate-700/80 rounded-lg px-2 py-0.5 text-slate-300">
+                <span className="text-[9px] text-slate-400 font-bold">EN:</span>
+                <span className="font-semibold text-slate-200">{trilingualName.en}</span>
+              </span>
+            </div>
+          )}
           {/* Gender Selector */}
           <div className="mt-2.5">
             <span className="text-[10px] text-slate-400 font-semibold mb-1.5 flex items-center gap-1.5">

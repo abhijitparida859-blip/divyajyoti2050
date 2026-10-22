@@ -1,5 +1,6 @@
 import React from 'react';
 import { useI18n } from '../../localization/i18n';
+import { getLocalizedNativeName } from '../../localization/nameTransliteration';
 import { BirthChartData } from '../../types/jataka';
 import { getDashaPhala } from '../../core/jataka/yearly_forecast_engine';
 import { Crown, Sun, Moon, Star, Zap, ShieldCheck, HeartHandshake, CalendarDays } from 'lucide-react';
@@ -16,7 +17,7 @@ export const KundaliOverviewDashboard: React.FC<Props> = ({ chartData, onGo }) =
   return (
     <div className="space-y-5">
       <div className="bg-gradient-to-r from-amber-500/15 via-cosmic-950 to-cosmic-950 border border-amber-400/40 rounded-3xl p-4 sm:p-6">
-        <h3 className="text-base sm:text-lg font-black text-slate-100 font-serif">🪔 {chartData.nativeName} • Summary</h3>
+        <h3 className="text-base sm:text-lg font-black text-slate-100 font-serif">🪔 {getLocalizedNativeName(chartData.nativeName, language) || chartData.nativeName} • {language === 'or' ? 'ସାରାଂଶ' : language === 'hi' ? 'सारांश' : 'Summary'}</h3>
         <p className="text-xs text-slate-400 mt-1">{chartData.birthPlace} • {chartData.dateTime.slice(0, 10)} • {tRashi(chartData.ascendantSign)} Lagna • {tRashi(moon.sign)} Rashi • {tNakshatra(moon.nakshatra)}</p>
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 mt-4">
           <button onClick={() => onGo('chart')} className="text-left rounded-2xl border border-slate-700/70 bg-cosmic-950/70 p-3 hover:border-cosmic-gold/60 cursor-pointer"><div className="text-[11px] text-slate-400 font-bold uppercase">Lagna</div><div className="text-sm font-black text-slate-100 mt-1">{tRashi(chartData.ascendantSign)} ({formatNumber(chartData.ascendantDegree)}°)</div></button>
