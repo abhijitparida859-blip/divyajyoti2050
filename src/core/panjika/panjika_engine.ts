@@ -63,12 +63,12 @@ export function calculatePanjika(date: Date = new Date(), latitude: number = 28.
     tithiName = 'Amavasya';
   }
 
-  const tithiPercentage = Math.round((1 - (tithiIndexExact - Math.floor(tithiIndexExact))) * 100);
+  const tithiFraction = tithiIndexExact - Math.floor(tithiIndexExact);
+  const tithiPercentage = Math.round(tithiFraction * 100);
 
   // Compute approximate tithi end time:
   // Moon-Sun elongation rate ≈ 12.19° / day, each tithi = 12°
   // Remaining fraction → hours until next tithi boundary
-  const tithiFraction = tithiIndexExact - Math.floor(tithiIndexExact);
   const remainingFraction = 1 - tithiFraction;
   const hoursUntilEnd = remainingFraction * (12 / 12.19) * 24; // ~23.6h per tithi
   const endDate = new Date(date.getTime() + hoursUntilEnd * 3600000);
@@ -136,8 +136,11 @@ export function calculatePanjika(date: Date = new Date(), latitude: number = 28.
   // 5. Muhurtas
   const muhurtas = calculateMuhurtas(date, sunTimes.sunrise, sunTimes.sunset);
 
-  // 6. Moon Phase (0 = Amavasya, 0.5 = Ashtami, 1 = Purnima)
-  const moonPhase = Math.abs(1 - Math.abs((moonSunDiff - 180) / 180));
+  // 6. Moon Phase & True Astronomical Disk Illumination Fraction
+  // Real astronomical disk illumination: k = (1 - cos(elongation)) / 2
+  // 0 = Amavasya (0%), 0.5 = Ashtami (50%), 1.0 = Purnima (100%)
+  const elongationRad = (moonSunDiff * Math.PI) / 180;
+  const moonPhase = (1 - Math.cos(elongationRad)) / 2;
 
   // 7. Notable Vedic Festivals & Tithis
   const festivals: string[] = [];
