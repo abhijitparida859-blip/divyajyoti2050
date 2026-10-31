@@ -248,9 +248,19 @@ Every tithi-bound festival rule now uses `isTithiObservanceToday(n)` (and `isPur
 
 **Regression tests added** — `src/tests/panjikaTimezone.test.ts` (9 tests) locks IST sunrise/sunset/tithi-end values, the IST solar-day/sankranti boundary, the weekday, single-day observance for Snana Purnima and Maha Saptami, the whole 2026 Durga Puja cycle, "no annual festival on more than one day", and Ratha Yatra on Asadha Shukla Dwitiya.
 
-### 7.3 Housekeeping — stale lockfile entries (open)
+### 7.3 Housekeeping — stale lockfile entries — ✅ FIXED
 
-`package-lock.json` still lists `@react-three/drei`, `@react-three/fiber` and their transitive packages (`@mediapipe/tasks-vision`, `@monogrid/gainmap-js`, …) even though neither is declared in `package.json` and nothing in `src/` imports them. A plain `npm install` prunes ~620 lines from the lockfile. Left untouched so the fix diff stays reviewable — worth a separate chore commit.
+`package-lock.json` listed `@react-three/drei`, `@react-three/fiber` and their whole transitive tree even though neither is declared in `package.json` and nothing in `src/` imports them (all 3D work uses `three` directly).
+
+**Cleanup:** regenerated the lockfile from `package.json` with a plain `npm install`.
+
+| Metric | Before | After |
+| --- | --- | --- |
+| Lockfile package entries | 358 | 306 |
+| Removed stale entries | — | 52 (`@react-three/drei`, `@react-three/fiber`, `three-stdlib`, `troika-*`, `maath`, `zustand`, `detect-gpu`, `draco3d`, `@mediapipe/tasks-vision`, `@monogrid/gainmap-js`, …) |
+| `@tweenjs/tween.js`, `@types/stats.js`, `@types/webxr`, `@webgpu/types`, `meshoptimizer` | implicitly runtime | correctly flagged `"dev": true` (they are only reachable via the `@types/three` devDependency — `three@0.170.0` itself has **zero** runtime dependencies) |
+
+**Verified:** `npm ci` clean install of 211 packages succeeds from the new lockfile, `npm ls --omit=dev --depth=0` resolves exactly the 8 runtime dependencies (`react`, `react-dom`, `three`, `leaflet`, `@types/leaflet`, `lucide-react`, `canvas-confetti`, `html2pdf.js`) with no missing/invalid entries, and `tsc --noEmit` + `vitest` (205/205) + `npm run build` all stay green.
 
 ---
 
