@@ -1,5 +1,12 @@
 import { calculatePlanetaryPositions, normalizeDegrees } from '../astronomy/ephemeris';
 import { calculateSunTimes } from '../astronomy/solar_lunar';
+import {
+  IST_OFFSET_MINUTES,
+  civilDate,
+  formatIstClock,
+  getCivilWeekday,
+  getIstCivilDateParts
+} from '../astronomy/istTime';
 import { DayPanjika, TithiInfo, NakshatraInfo, YogaInfo, KaranaInfo } from '../../types/panjika';
 import { calculateMuhurtas } from './muhurta';
 
@@ -48,8 +55,14 @@ export const TITHI_NAMES = [
 export const WEEKDAYS = ['Ravivara', 'Somavara', 'Mangalavara', 'Budhavara', 'Guruvara', 'Shukravara', 'Shanivara'];
 
 export function calculatePanjika(date: Date = new Date(), latitude: number = 28.6139, longitude: number = 77.2090): DayPanjika {
+  // Odisha civil time (IST) anchoring — every clock value is expressed in IST so
+  // the result depends only on the instant passed in, never on the host
+  // timezone. Callers that own a civil date (calendar engines, daily widgets)
+  // should pass an IST-anchored instant, e.g. istInstantFromMinutes(parts, 0).
   const planets = calculatePlanetaryPositions(date);
-  const sunTimes = calculateSunTimes(date, latitude, longitude);
+  const sunTimes = calculateSunTimes(date, latitude, longitude, IST_OFFSET_MINUTES);
+  const istCivil = getIstCivilDateParts(date);
+  const istWeekday = getCivilWeekday(istCivil);
 
   // 1. Tithi Calculation
   const moonSunDiff = normalizeDegrees(planets.moon - planets.sun);
@@ -72,11 +85,7 @@ export function calculatePanjika(date: Date = new Date(), latitude: number = 28.
   const remainingFraction = 1 - tithiFraction;
   const hoursUntilEnd = remainingFraction * (12 / 12.19) * 24; // ~23.6h per tithi
   const endDate = new Date(date.getTime() + hoursUntilEnd * 3600000);
-  const eH = endDate.getHours();
-  const eM = endDate.getMinutes();
-  const ePeriod = eH >= 12 ? 'PM' : 'AM';
-  const eDispH = eH % 12 === 0 ? 12 : eH % 12;
-  const tithiEndTime = `${eDispH.toString().padStart(2, '0')}:${eM.toString().padStart(2, '0')} ${ePeriod}`;
+  const tithiEndTime = formatIstClock(endDate);
 
   const tithi: TithiInfo = {
     number: tithiNumber,
@@ -133,8 +142,8 @@ export function calculatePanjika(date: Date = new Date(), latitude: number = 28.
     type: karanaType
   };
 
-  // 5. Muhurtas
-  const muhurtas = calculateMuhurtas(date, sunTimes.sunrise, sunTimes.sunset);
+  // 5. Muhurtas (weekday resolved in IST so Rahu Kaalam etc. stay correct on any host)
+  const muhurtas = calculateMuhurtas(civilDate(istCivil.year, istCivil.month, istCivil.day), sunTimes.sunrise, sunTimes.sunset);
 
   // 6. Moon Phase & True Astronomical Disk Illumination Fraction
   // Real astronomical disk illumination: k = (1 - cos(elongation)) / 2
@@ -150,9 +159,9 @@ export function calculatePanjika(date: Date = new Date(), latitude: number = 28.
   if (tithiNumber === 15) festivals.push('Satyanarayan Purnima');
   if (tithiNumber === 30) festivals.push('Darsha Amavasya');
 
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
+  const y = istCivil.year;
+  const m = String(istCivil.month + 1).padStart(2, '0');
+  const d = String(istCivil.day).padStart(2, '0');
 
   // Dynamic Astronomical Moonrise Calculation from Moon-Sun Elongation
   const [sunriseHM, sunrisePeriod] = sunTimes.sunrise.split(' ');
@@ -173,7 +182,7 @@ export function calculatePanjika(date: Date = new Date(), latitude: number = 28.
     nakshatra,
     yoga,
     karana,
-    vaara: WEEKDAYS[date.getDay()],
+    vaara: WEEKDAYS[istWeekday],
     sunrise: sunTimes.sunrise,
     sunset: sunTimes.sunset,
     moonrise: calculatedMoonrise,

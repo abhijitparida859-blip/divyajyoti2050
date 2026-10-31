@@ -2,6 +2,15 @@ import { calculatePlanetaryPositions, normalizeDegrees, toRadians, toDegrees } f
 import { getJulianDay, getJulianCenturies } from '../astronomy/julian';
 import { getLahiriAyanamsha } from '../astronomy/ayanamsha';
 import { calculateSunTimes, SunTimes } from '../astronomy/solar_lunar';
+import {
+  IST_OFFSET_MINUTES,
+  addCivilDays,
+  civilDate,
+  getCivilDateParts,
+  getCivilWeekday,
+  getIstClockMinutes,
+  istInstantFromMinutes
+} from '../astronomy/istTime';
 import { calculatePanjika, WEEKDAYS, TITHI_NAMES, NAKSHATRA_NAMES } from './panjika_engine';
 import { DayPanjika } from '../../types/panjika';
 
@@ -694,18 +703,21 @@ export function calculateOdiaCalendarDay(
   longitude: number = 85.8312,
   editionId: string = 'kohinoor'
 ): DynamicOdiaDayInfo {
-  const sunTimes = calculateSunTimes(date, latitude, longitude);
+  const sunTimes = calculateSunTimes(date, latitude, longitude, IST_OFFSET_MINUTES);
   // @ts-ignore
   const _tempTimeParse = (t: string) => { const [hm, p] = t.split(' '); const [h, m] = hm.split(':'); let hs = parseInt(h); if (p === 'PM' && hs !== 12) hs += 12; if (p === 'AM' && hs === 12) hs = 0; return hs * 60 + parseInt(m); };
   const _globalTimeParse = typeof timeStringToMinutes === 'function' ? timeStringToMinutes : _tempTimeParse;
   const sunriseMinutes = _globalTimeParse(sunTimes.sunrise);
   const sunsetMinutes = _globalTimeParse(sunTimes.sunset);
 
+  // Odia Panjika civil day: the date the caller asked for, resolved in IST.
+  // Every instant below is rebuilt from this civil date + IST wall-clock
+  // minutes, so results never depend on the host machine timezone.
+  const civilParts = getCivilDateParts(date);
+
   // In authentic Vedic Jyotisha / Odia Panjika Shastra, the canonical day Panchanga
   // (Udaya Tithi, Udaya Nakshatra, Dina Rashi) is anchored precisely to Suryodaya (Sunrise).
-  const sHour = Math.floor(sunriseMinutes / 60);
-  const sMin = sunriseMinutes % 60;
-  const sunriseDate = new Date(date.getFullYear(), date.getMonth(), date.getDate(), sHour, sMin, 0);
+  const sunriseDate = istInstantFromMinutes(civilParts, sunriseMinutes);
 
   const panjika = calculatePanjika(sunriseDate, latitude, longitude);
   const planets = calculatePlanetaryPositions(sunriseDate);
@@ -776,17 +788,10 @@ export function calculateOdiaCalendarDay(
   // A kshaya tithi has no sunrise within its span, so it is skipped between
   // two consecutive sunrise days (e.g. Pratipada 1 -> Tritiya 3 means Dwitiya 2
   // was kshaya). This matters for festivals tied to a specific tithi number.
-  const prevCalDate = new Date(date.getFullYear(), date.getMonth(), date.getDate() - 1);
-  const prevSunTimes = calculateSunTimes(prevCalDate, latitude, longitude);
+  const prevCivilParts = addCivilDays(civilParts, -1);
+  const prevSunTimes = calculateSunTimes(civilDate(prevCivilParts.year, prevCivilParts.month, prevCivilParts.day), latitude, longitude, IST_OFFSET_MINUTES);
   const prevSm = _globalTimeParse(prevSunTimes.sunrise);
-  const prevSunriseDate = new Date(
-    prevDate.getFullYear(),
-    prevDate.getMonth(),
-    prevDate.getDate(),
-    Math.floor(prevSm / 60),
-    prevSm % 60,
-    0
-  );
+  const prevSunriseDate = istInstantFromMinutes(prevCivilParts, prevSm);
   const prevPanajika = calculatePanjika(prevSunriseDate, latitude, longitude);
   const prevTithiNumber = prevPanajika.tithi.number;
   const prevIsShukla = prevPanajika.tithi.paksha === 'Shukla';
@@ -794,6 +799,34 @@ export function calculateOdiaCalendarDay(
   const isAmavasya = tithiNumber === 30;
   const isEkadashi = tithiNumber === 11 || tithiNumber === 26;
   const isPradosha = tithiNumber === 13 || tithiNumber === 28;
+
+  // ── Udaya-Vyapini disambiguation (କାଳ ବ୍ୟାପ୍ତି) ─────────────────────────────
+  // A tithi lasts ~24.5h, so it can be present at sunrise on two consecutive
+  // days (e.g. Purnima 2026 started 4 minutes before sunrise on 29 June and
+  // lasted past sunrise on 30 June; Saptami 2026 fell on 17 & 18 October).
+  // Panjika festivals are observed on the LAST sunrise day holding the tithi,
+  // so festival rules use `isTithiObservanceToday(n)` for tithi-bound days.
+  // The raw sunrise flags (`isPurnima`, `tithiNumber`) are still returned for
+  // display purposes.
+  let nextSunriseTithiCache: number | null = null;
+  const getNextSunriseTithiNumber = (): number => {
+    if (nextSunriseTithiCache === null) {
+      const nextCivilParts = addCivilDays(civilParts, 1);
+      const nextSunTimes = calculateSunTimes(
+        civilDate(nextCivilParts.year, nextCivilParts.month, nextCivilParts.day),
+        latitude,
+        longitude,
+        IST_OFFSET_MINUTES
+      );
+      const nextSunriseDate = istInstantFromMinutes(nextCivilParts, _globalTimeParse(nextSunTimes.sunrise));
+      nextSunriseTithiCache = calculatePanjika(nextSunriseDate, latitude, longitude).tithi.number;
+    }
+    return nextSunriseTithiCache;
+  };
+  const isTithiObservanceToday = (targetTithi: number): boolean =>
+    tithiNumber === targetTithi && getNextSunriseTithiNumber() !== targetTithi;
+
+  const isPurnimaObservance = isPurnima && isTithiObservanceToday(15);
 
   // In Purnimanta tradition (followed in Odisha & Surya Siddhanta),
   // a lunar month runs from Krishna Pratipada through Amavasya to Purnima.
@@ -804,7 +837,10 @@ export function calculateOdiaCalendarDay(
   const daysToAmavasya = isShukla 
     ? -(elongation / 12.19074) 
     : ((360 - elongation) / 12.19074);
-  const approxAmavasyaTime = new Date(date.getTime() + daysToAmavasya * 86400000);
+  // Reference instant for the Amavasya extrapolation: IST midnight of the civil
+  // day (host timezone must never influence which lunar month is reported).
+  const civilMidnight = istInstantFromMinutes(civilParts, 0);
+  const approxAmavasyaTime = new Date(civilMidnight.getTime() + daysToAmavasya * 86400000);
   const amavasyaPlanets = calculatePlanetaryPositions(approxAmavasyaTime);
   const sunAtAmavasya = normalizeDegrees(amavasyaPlanets.sun);
   const lunarMonthIdx = Math.floor(sunAtAmavasya / 30) % 12;
@@ -827,15 +863,11 @@ export function calculateOdiaCalendarDay(
   }
 
   // Authentic Vedic Kala Vyapti Calculations (କାଳ ବ୍ୟାପ୍ତି ନିର୍ଣ୍ଣୟ)
-  const localYear = date.getFullYear();
-  const localMonth = date.getMonth();
-  const localDay = date.getDate();
+  const localYear = civilParts.year;
+  const localMonth = civilParts.month;
+  const localDay = civilParts.day;
 
-  const getDateAtMinute = (minutes: number) => {
-    const h = Math.floor(minutes / 60);
-    const m = Math.floor(minutes % 60);
-    return new Date(localYear, localMonth, localDay, h, m, 0);
-  };
+  const getDateAtMinute = (minutes: number) => istInstantFromMinutes(civilParts, minutes);
 
   const dayLength = sunsetMinutes - sunriseMinutes;
   const purvahnaMinute = sunriseMinutes + dayLength / 4;       // Forenoon (~09:00 - 10:30)
@@ -866,7 +898,7 @@ export function calculateOdiaCalendarDay(
   const festivals: DynamicOdiaDayInfo['festivals'] = [];
   const monthId = odiaSolarMonth.id;
   const lunarMonthId = ODIA_SOLAR_MONTHS[lunarMonthIdx].id;
-  const weekday = date.getDay(); // 0=Sun, 4=Thu
+  const weekday = getCivilWeekday(civilParts); // 0=Sun, 4=Thu
 
   // Sankranti festival
   if (isSankranti && sankrantiName) {
@@ -892,7 +924,7 @@ export function calculateOdiaCalendarDay(
 
   // Baisakha Festivals
   if (lunarMonthId === 'baisakha') {
-    if (isShukla && tithiNumber === 3) {
+    if (isShukla && isTithiObservanceToday(3)) {
       festivals.push({
         id: 'akshaya_tritiya',
         nameOr: 'ଅକ୍ଷୟ ତୃତୀୟା (ରଥ ନିର୍ମାଣ ଅନୁକୂଳ ଓ ଚନ୍ଦନ ଯାତ୍ରା)',
@@ -904,7 +936,7 @@ export function calculateOdiaCalendarDay(
         isGovernmentHoliday: true
       });
     }
-    if (isShukla && tithiNumber === 14) {
+    if (isShukla && isTithiObservanceToday(14)) {
       festivals.push({
         id: 'nrusimha_chaturdashi',
         nameOr: 'ନୃସିଂହ ଚତୁର୍ଦ୍ଦଶୀ (ନୃସିଂହ ଜନ୍ମ)',
@@ -915,7 +947,7 @@ export function calculateOdiaCalendarDay(
         descriptionEn: 'Appearance day of Lord Nrusimha.'
       });
     }
-    if (isPurnima) {
+    if (isPurnimaObservance) {
       festivals.push({
         id: 'baisakha_purnima',
         nameOr: 'ବୈଶାଖ ପୂର୍ଣ୍ଣିମା (ଚନ୍ଦନ ପୂର୍ଣ୍ଣିମା ଓ ବୁଦ୍ଧ ଜୟନ୍ତୀ)',
@@ -946,7 +978,7 @@ export function calculateOdiaCalendarDay(
       });
     }
     // Sitala Sasthi: Jyestha Shukla Sasthi in Nija Jyestha
-    if (isShukla && tithiNumber === 6 && (solarRashiIdx === 2 || (solarRashiIdx === 1 && degInRashi >= 10))) {
+    if (isShukla && isTithiObservanceToday(6) && (solarRashiIdx === 2 || (solarRashiIdx === 1 && degInRashi >= 10))) {
       festivals.push({
         id: 'sitala_sasthi',
         nameOr: 'ଶୀତଳ ଷଷ୍ଠୀ ଯାତ୍ରା (ଶିବ-ପାର୍ବତୀ ବିବାହ)',
@@ -958,7 +990,7 @@ export function calculateOdiaCalendarDay(
       });
     }
     // Deva Snana Purnima: Jyestha Purnima in Nija Jyestha (15 days strictly preceding Ratha Yatra)
-    if (isPurnima && (solarRashiIdx === 2 || (solarRashiIdx === 1 && degInRashi >= 25))) {
+    if (isPurnimaObservance && (solarRashiIdx === 2 || (solarRashiIdx === 1 && degInRashi >= 25))) {
       festivals.push({
         id: 'snana_purnima',
         nameOr: 'ଦେବସ୍ନାନ ପୂର୍ଣ୍ଣିମା (ହାତୀ ବେଶ ଓ ଅଣସର ବିଜେ)',
@@ -976,8 +1008,9 @@ export function calculateOdiaCalendarDay(
   // Day 1: Pahili Raja (Last day of Jyestha solar month, eve of Mithuna Sankranti)
   // Detect as: today is in Vrushabha (solarRashiIdx === 1) AND tomorrow will be in Mithuna (solarRashiIdx === 2)
   if (solarRashiIdx === 1) {
-    const tomorrowDate = new Date(date.getTime() + 86400000);
-    const tomorrowPlanets = calculatePlanetaryPositions(tomorrowDate);
+    // Midnight of the next civil day in IST — matches how the day boundary of
+    // Mithuna Sankranti is observed at Srikshetra.
+    const tomorrowPlanets = calculatePlanetaryPositions(istInstantFromMinutes(addCivilDays(civilParts, 1), 0));
     const tomorrowSolarRashi = Math.floor(normalizeDegrees(tomorrowPlanets.sun) / 30);
     if (tomorrowSolarRashi === 2) {
       festivals.push({
@@ -1038,7 +1071,7 @@ export function calculateOdiaCalendarDay(
     // the festival is observed on the first Shukla sunrise after the gap
     // (Tritiya, tithi 3), i.e. previous sunrise was Pratipada (1).
     const isKshayaDwitiya = isShukla && tithiNumber === 3 && prevIsShukla && prevTithiNumber === 1;
-    if (isShukla && (tithiNumber === 2 || isKshayaDwitiya)) {
+    if (isShukla && (isTithiObservanceToday(2) || isKshayaDwitiya)) {
       festivals.push({
         id: 'ratha_yatra',
         nameOr: 'ବିଶ୍ୱପ୍ରସିଦ୍ଧ ରଥଯାତ୍ରା (ଶ୍ରୀଗୁଣ୍ଡିଚା ଯାତ୍ରା)',
@@ -1050,7 +1083,7 @@ export function calculateOdiaCalendarDay(
         isGovernmentHoliday: true
       });
     }
-    if (isShukla && tithiNumber === 5) {
+    if (isShukla && isTithiObservanceToday(5)) {
       festivals.push({
         id: 'hera_panchami',
         nameOr: 'ହେରା ପଞ୍ଚମୀ (ମା’ ଲକ୍ଷ୍ମୀଙ୍କ ଗୁଣ୍ଡିଚା ମନ୍ଦିର ବିଜେ)',
@@ -1061,7 +1094,7 @@ export function calculateOdiaCalendarDay(
         descriptionEn: 'Goddess Lakshmi visits Gundicha temple to express loving anger and breaks a piece of Nandighosha chariot.'
       });
     }
-    if (isShukla && tithiNumber === 10) {
+    if (isShukla && isTithiObservanceToday(10)) {
       festivals.push({
         id: 'bahuda_yatra',
         nameOr: 'ବାହୁଡ଼ା ଯାତ୍ରା (ଫେରନ୍ତା ରଥ ଓ ମାଉସୀ ମା’ ପୋଡ଼ପିଠା)',
@@ -1073,7 +1106,7 @@ export function calculateOdiaCalendarDay(
         isGovernmentHoliday: true
       });
     }
-    if (isShukla && tithiNumber === 11) {
+    if (isShukla && isTithiObservanceToday(11)) {
       festivals.push({
         id: 'suna_besha',
         nameOr: 'ମହାର୍ଘ ସୁନା ବେଶ (ରଥ ଉପରେ ରାଜାଧିରାଜ ବେଶ)',
@@ -1085,7 +1118,7 @@ export function calculateOdiaCalendarDay(
         isGovernmentHoliday: true
       });
     }
-    if (isShukla && tithiNumber === 13) {
+    if (isShukla && isTithiObservanceToday(13)) {
       festivals.push({
         id: 'niladri_bije',
         nameOr: 'ନୀଳାଦ୍ରି ବିଜେ (ରସଗୋଲା ଦିବସ)',
@@ -1111,7 +1144,7 @@ export function calculateOdiaCalendarDay(
         descriptionEn: 'Golden and Diamond forehead Chitas adorned on Lord Jagannath; Chitau Pitha offered in every home.'
       });
     }
-    if (isPurnima) {
+    if (isPurnimaObservance) {
       festivals.push({
         id: 'gamha_purnima',
         nameOr: 'ଗହ୍ମା ପୂର୍ଣ୍ଣିମା (ବଳଭଦ୍ର ଜନ୍ମ ଓ ରାକ୍ଷୀ ବନ୍ଧନ)',
@@ -1140,7 +1173,7 @@ export function calculateOdiaCalendarDay(
         isGovernmentHoliday: true
       });
     }
-    if (!isShukla && tithiNumber === 24) {
+    if (!isShukla && isTithiObservanceToday(24)) {
       festivals.push({
         id: 'nandotsava',
         nameOr: 'ନନ୍ଦୋତ୍ସବ (ଶ୍ରୀମନ୍ଦିର ବନଭୋଜି ବେଶ)',
@@ -1188,7 +1221,7 @@ export function calculateOdiaCalendarDay(
         isGovernmentHoliday: true
       });
     }
-    if (isShukla && tithiNumber === 8) {
+    if (isShukla && isTithiObservanceToday(8)) {
       festivals.push({
         id: 'radha_ashtami',
         nameOr: 'ରାଧାଷ୍ଟମୀ (ଶ୍ରୀମତୀ ରାଧାରାଣୀ ଆବିର୍ଭାବ)',
@@ -1199,7 +1232,7 @@ export function calculateOdiaCalendarDay(
         descriptionEn: 'Appearance day of Srimati Radharani with special Vaishnava worship.'
       });
     }
-    if (isShukla && tithiNumber === 14) {
+    if (isShukla && isTithiObservanceToday(14)) {
       festivals.push({
         id: 'ananta_vrata',
         nameOr: 'ଅନନ୍ତ ଚତୁର୍ଦ୍ଦଶୀ (୧୪ ଗଣ୍ଠି ଡୋରା ବ୍ରତ)',
@@ -1210,7 +1243,7 @@ export function calculateOdiaCalendarDay(
         descriptionEn: 'Sacred worship of Lord Ananta Padmanabha wearing 14-knot sacred cord.'
       });
     }
-    if (isPurnima) {
+    if (isPurnimaObservance) {
       festivals.push({
         id: 'indu_purnima',
         nameOr: 'ଭାଦ୍ରବ ପୂର୍ଣ୍ଣିମା (ଇନ୍ଦୁ ପୂର୍ଣ୍ଣିମା)',
@@ -1238,7 +1271,7 @@ export function calculateOdiaCalendarDay(
       });
     }
     // Maha Sasthi / Bilba Barana (Aswina Shukla 6 — official start of Durga Puja)
-    if (isShukla && tithiNumber === 6) {
+    if (isShukla && isTithiObservanceToday(6)) {
       festivals.push({
         id: 'maha_sasthi',
         nameOr: 'ମହାଷଷ୍ଠୀ (ବିଲ୍ବ ବାରଣ / ବୋଧନ)',
@@ -1250,7 +1283,7 @@ export function calculateOdiaCalendarDay(
         isGovernmentHoliday: false
       });
     }
-    if (isShukla && tithiNumber === 7) {
+    if (isShukla && isTithiObservanceToday(7)) {
       festivals.push({
         id: 'maha_saptami',
         nameOr: 'ମହାସପ୍ତମୀ (ନବପତ୍ରିକା ପ୍ରବେଶ ଓ ଚକ୍ଷୁଦାନ)',
@@ -1262,7 +1295,7 @@ export function calculateOdiaCalendarDay(
         isGovernmentHoliday: true
       });
     }
-    if (isShukla && tithiNumber === 8) {
+    if (isShukla && isTithiObservanceToday(8)) {
       festivals.push({
         id: 'durga_ashtami',
         nameOr: 'ମହାଷ୍ଟମୀ ଦୁର୍ଗାପୂଜା (ସନ୍ଧି ପୂଜା)',
@@ -1274,7 +1307,7 @@ export function calculateOdiaCalendarDay(
         isGovernmentHoliday: true
       });
     }
-    if (isShukla && tithiNumber === 9) {
+    if (isShukla && isTithiObservanceToday(9)) {
       festivals.push({
         id: 'maha_navami',
         nameOr: 'ମହାନବମୀ (ଅପରାଜିତା ପୂଜା ଓ ବଳିଦାନ ବିଧି)',
@@ -1286,7 +1319,7 @@ export function calculateOdiaCalendarDay(
         isGovernmentHoliday: true
       });
     }
-    if (isShukla && tithiNumber === 10) {
+    if (isShukla && isTithiObservanceToday(10)) {
       festivals.push({
         id: 'vijaya_dashami',
         nameOr: 'ବିଜୟା ଦଶମୀ / ଦସହରା (ରାବଣ ପୋଡ଼ି)',
@@ -1298,7 +1331,7 @@ export function calculateOdiaCalendarDay(
         isGovernmentHoliday: true
       });
     }
-    if (isPurnima) {
+    if (isPurnimaObservance) {
       festivals.push({
         id: 'kumar_purnima',
         nameOr: 'କୁମାର ପୂର୍ଣ୍ଣିମା (କୁଆଁର ପୁନେଇଁ ଓ ଚାନ୍ଦ ଚକଟା)',
@@ -1326,7 +1359,7 @@ export function calculateOdiaCalendarDay(
         isGovernmentHoliday: true
       });
     }
-    if (isPurnima) {
+    if (isPurnimaObservance) {
       festivals.push({
         id: 'kartika_purnima',
         nameOr: 'କାର୍ତ୍ତିକ ପୂର୍ଣ୍ଣିମା ଓ ବୋଇତ ବନ୍ଦାଣ (ଆ-କା-ମା-ବୈ)',
@@ -1380,7 +1413,7 @@ export function calculateOdiaCalendarDay(
       });
     }
     // Samba Dashami (Pausha Shukla 10 — Sun God worship, uniquely Odia)
-    if (isShukla && tithiNumber === 10) {
+    if (isShukla && isTithiObservanceToday(10)) {
       festivals.push({
         id: 'samba_dashami',
         nameOr: 'ସାମ୍ବ ଦଶମୀ (ସୂର୍ଯ୍ୟ ପୂଜା)',
@@ -1391,7 +1424,7 @@ export function calculateOdiaCalendarDay(
         descriptionEn: 'Worship of Sun God (Surya) at Konark. Women observe vrata for childrens welfare.'
       });
     }
-    if (isPurnima) {
+    if (isPurnimaObservance) {
       festivals.push({
         id: 'pushyabhisheka',
         nameOr: 'ପୁଷ୍ୟାଭିଷେକ (ଶ୍ରୀମନ୍ଦିର ରାଜାଧିରାଜ ସୁନାବେଶ)',
@@ -1407,7 +1440,7 @@ export function calculateOdiaCalendarDay(
   // Magha Festivals
   if (lunarMonthId === 'magha') {
     // Saraswati Puja: Strictly Purvahna Vyapini Magha Shukla Panchami (tithi 5)
-    const prevDayPurvahna = getTithiInfoAt(new Date(localYear, localMonth, localDay - 1, Math.floor(purvahnaMinute / 60), Math.floor(purvahnaMinute % 60)));
+    const prevDayPurvahna = getTithiInfoAt(istInstantFromMinutes(addCivilDays(civilParts, -1), purvahnaMinute));
     const isYesterdayPurvahnaPanchami = prevDayPurvahna.isShukla && prevDayPurvahna.tithiNumber === 5;
     const isSaraswatiPujaToday = isShukla && (
       (tithiPurvahna.isShukla && tithiPurvahna.tithiNumber === 5) ||
@@ -1426,7 +1459,7 @@ export function calculateOdiaCalendarDay(
         isGovernmentHoliday: true
       });
     }
-    if (isShukla && tithiNumber === 7) {
+    if (isShukla && isTithiObservanceToday(7)) {
       festivals.push({
         id: 'magha_saptami',
         nameOr: 'ମାଘ ସପ୍ତମୀ (ଚନ୍ଦ୍ରଭାଗା ମେଳା ଓ ସୂର୍ଯ୍ୟ ପୂଜା)',
@@ -1437,7 +1470,7 @@ export function calculateOdiaCalendarDay(
         descriptionEn: 'Sacred sunrise dip at the Chandrabhaga beach near Konark Sun Temple.'
       });
     }
-    if (isPurnima) {
+    if (isPurnimaObservance) {
       festivals.push({
         id: 'agira_purnima',
         nameOr: 'ଅଗ୍ନି ଉତ୍ସବ (ଅଗିରା ପୂର୍ଣ୍ଣିମା)',
@@ -1465,7 +1498,7 @@ export function calculateOdiaCalendarDay(
         isGovernmentHoliday: true
       });
     }
-    if (isPurnima) {
+    if (isPurnimaObservance) {
       festivals.push({
         id: 'dola_purnima',
         nameOr: 'ଦୋଳ ପୂର୍ଣ୍ଣିମା ଓ ହୋଲି (ଫଗୁ ଖେଳ ଓ ନୂତନ ପାଞ୍ଜି ପାଠ)',
@@ -1493,7 +1526,7 @@ export function calculateOdiaCalendarDay(
       });
     }
     // Ashokashtami / Rukuna Ratha Yatra (Chaitra Shukla 8)
-    if (isShukla && tithiNumber === 8) {
+    if (isShukla && isTithiObservanceToday(8)) {
       festivals.push({
         id: 'ashokashtami',
         nameOr: 'ଅଶୋକାଷ୍ଟମୀ (ରୁକୁଣା ରଥ ଯାତ୍ରା)',
@@ -1521,49 +1554,49 @@ export function calculateOdiaCalendarDay(
 
   // 5. Special Srimandir Jagannath Daily Besha Detection
   let jagannathBesha: DynamicOdiaDayInfo['jagannathBesha'];
-  if (monthId === 'jyestha' && isPurnima) {
+  if (monthId === 'jyestha' && isPurnimaObservance) {
     jagannathBesha = {
       or: 'ଗଜାନନ (ହାତୀ) ବେଶ',
       hi: 'हाथी वेश (गजानन वेश)',
       en: 'Hati Besha (Elephant Attire)',
       descriptionOr: 'ସ୍ନାନ ପୂର୍ଣ୍ଣିମାରେ ୧୦୮ ସୁବର୍ଣ୍ଣ କଳସ ସ୍ନାନ ପରେ ଶ୍ରୀଜୀଉମାନେ ଗଣପତି ରୂପରେ ଭକ୍ତଙ୍କୁ ଦର୍ଶନ ଦିଅନ୍ତି।'
     };
-  } else if (monthId === 'asadha' && isShukla && tithiNumber === 11) {
+  } else if (monthId === 'asadha' && isShukla && isTithiObservanceToday(11)) {
     jagannathBesha = {
       or: 'ମହାର୍ଘ ସୁନା ବେଶ (ରଥ ଉପରେ ବଡ଼ତଢ଼ାଉ ବେଶ)',
       hi: 'सुना वेश (स्वर्ण वेश - रथ पर)',
       en: 'Suna Besha (Golden Attire on Chariots)',
       descriptionOr: 'ବାହୁଡ଼ା ଯାତ୍ରା ପରେ ରଥ ଉପରେ ସିଂହଦ୍ୱାରରେ ୧୩୮ କିଲୋ ସ୍ୱର୍ଣ୍ଣ ଅଳଙ୍କାରରେ ରାଜାଧିରାଜ ଦର୍ଶନ।'
     };
-  } else if (monthId === 'kartika' && isPurnima) {
+  } else if (monthId === 'kartika' && isPurnimaObservance) {
     jagannathBesha = {
       or: 'ରାଜରାଜେଶ୍ୱର ସୁନା ବେଶ (ରତ୍ନସିଂହାସନ)',
       hi: 'राजराजेश्वर सुना वेश',
       en: 'Rajarajeshwara Suna Besha',
       descriptionOr: 'କାର୍ତ୍ତିକ ପୂର୍ଣ୍ଣିମାରେ ରତ୍ନସିଂହାସନ ଉପରେ ମହାପ୍ରଭୁଙ୍କ ରାଜକୀୟ ସ୍ୱର୍ଣ୍ଣ ଅଳଙ୍କାର ବେଶ।'
     };
-  } else if (monthId === 'kartika' && isShukla && tithiNumber === 11) {
+  } else if (monthId === 'kartika' && isShukla && isTithiObservanceToday(11)) {
     jagannathBesha = {
       or: 'ଲକ୍ଷ୍ମୀନାରାୟଣ ବେଶ (ପଞ୍ଚୁକ ୧ମ ଦିନ)',
       hi: 'लक्ष्मीनारायण वेश',
       en: 'Lakshmi Narayana Besha (Panchuka Day 1)',
       descriptionOr: 'ପବିତ୍ର ବଡ଼ ଏକାଦଶୀରେ ମହାପ୍ରଭୁଙ୍କ ସ୍ୱର୍ଣ୍ଣ ଶଙ୍ଖ, ଚକ୍ର, ଗଦା, ପଦ୍ମ ଧାରଣ ପୂର୍ବକ ନାରାୟଣ ବେଶ।'
     };
-  } else if (monthId === 'kartika' && isShukla && tithiNumber === 12) {
+  } else if (monthId === 'kartika' && isShukla && isTithiObservanceToday(12)) {
     jagannathBesha = {
       or: 'ବାଙ୍କଚୂଡ଼ ବେଶ (ପଞ୍ଚୁକ ୨ୟ ଦିନ)',
       hi: 'बांकचूड़ वेश',
       en: 'Bankachuda Besha (Panchuka Day 2)',
       descriptionOr: 'ଶ୍ରୀଜଗନ୍ନାଥ ଓ ବଳଭଦ୍ରଙ୍କ ମସ୍ତକରେ ଚନ୍ଦ୍ରିକା ସହିତ ସ୍ୱର୍ଣ୍ଣ ବାଙ୍କଚୂଳ ମଣ୍ଡନ।'
     };
-  } else if (monthId === 'kartika' && isShukla && tithiNumber === 13) {
+  } else if (monthId === 'kartika' && isShukla && isTithiObservanceToday(13)) {
     jagannathBesha = {
       or: 'ତ୍ରିବିକ୍ରମ ବେଶ (ପଞ୍ଚୁକ ୩ୟ ଦିନ)',
       hi: 'त्रिविक्रम वेश',
       en: 'Tribikrama Besha (Panchuka Day 3)',
       descriptionOr: 'ବାମନ ଅବତାରର ବିଶ୍ୱରୂପ ସ୍ମୃତିରେ ମହାପ୍ରଭୁଙ୍କ ତ୍ରିବିକ୍ରମ ଅଳଙ୍କାର ବେଶ।'
     };
-  } else if (monthId === 'kartika' && isShukla && tithiNumber === 14) {
+  } else if (monthId === 'kartika' && isShukla && isTithiObservanceToday(14)) {
     jagannathBesha = {
       or: 'ଲକ୍ଷ୍ମୀନୃସିଂହ ବେଶ (ପଞ୍ଚୁକ ୪ର୍ଥ ଦିନ)',
       hi: 'लक्ष्मीनृसिंह वेश',
@@ -1577,28 +1610,28 @@ export function calculateOdiaCalendarDay(
       en: 'Padma Besha (Lotus Flower Attire)',
       descriptionOr: 'ପଦ୍ମ ପୁଷ୍ପ ଓ ସୋଲ କାରୁକାର୍ଯ୍ୟରେ ସମ୍ପୂର୍ଣ୍ଣ ରତ୍ନସିଂହାସନ ପଦ୍ମବନରେ ପରିଣତ ହୁଏ।'
     };
-  } else if (monthId === 'magha' && isPurnima) {
+  } else if (monthId === 'magha' && isPurnimaObservance) {
     jagannathBesha = {
       or: 'ଗଜଉଦ୍ଧାରଣ ବେଶ',
       hi: 'गजउद्धारण वेश',
       en: 'Gajauddharana Besha',
       descriptionOr: 'ଶ୍ରୀହରିଙ୍କ ଗଜେନ୍ଦ୍ର ମୋକ୍ଷଣ ଲୀଳାର ଦିବ୍ୟ ସ୍ମୃତିରେ ଗରୁଡ଼ାରୂଢ଼ ଚତୁର୍ଭୁଜ ବେଶ।'
     };
-  } else if (monthId === 'pausha' && isPurnima) {
+  } else if (monthId === 'pausha' && isPurnimaObservance) {
     jagannathBesha = {
       or: 'ପୁଷ୍ୟାଭିଷେକ ରାଜାଧିରାଜ ବେଶ',
       hi: 'पुष्याभिषेक राजवेष',
       en: 'Pushyabhisheka Rajadhiraja Besha',
       descriptionOr: 'ମହାପ୍ରଭୁଙ୍କ ସିଂହାସନାରୋହଣ ରାଜ୍ୟାଭିଷେକ ମହୋତ୍ସବ।'
     };
-  } else if (monthId === 'phalguna' && isPurnima) {
+  } else if (monthId === 'phalguna' && isPurnimaObservance) {
     jagannathBesha = {
       or: 'ଦୋଳ ପୂର୍ଣ୍ଣିମା ରାଜାଧିରାଜ ବେଶ',
       hi: 'दोल पूर्णिमा राजवेष',
       en: 'Dola Purnima Rajadhiraja Besha',
       descriptionOr: 'ଫଗୁ ଦଶମୀ ପରଠାରୁ ରାଜାଧିରାଜ ସ୍ୱର୍ଣ୍ଣ ବେଶ ଓ ଦୋଳବିମାନରେ ଦୋଳବେଦୀ ଯାତ୍ରା।'
     };
-  } else if (monthId === 'baisakha' && isShukla && tithiNumber === 3) {
+  } else if (monthId === 'baisakha' && isShukla && isTithiObservanceToday(3)) {
     jagannathBesha = {
       or: 'ଅକ୍ଷୟ ତୃତୀୟା ଚନ୍ଦନ ବେଶ',
       hi: 'चंदन वेश',
@@ -2038,11 +2071,11 @@ export function calculateOdiaCalendarDay(
 
   const dayResult: DynamicOdiaDayInfo = {
     date,
-    dateStr: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`,
+    dateStr: `${civilParts.year}-${String(civilParts.month + 1).padStart(2, '0')}-${String(civilParts.day).padStart(2, '0')}`,
     rituInfo,
-    dayOfMonth: date.getDate(),
-    gregorianMonth: date.getMonth(),
-    gregorianYear: date.getFullYear(),
+    dayOfMonth: civilParts.day,
+    gregorianMonth: civilParts.month,
+    gregorianYear: civilParts.year,
     weekdayIdx: weekday,
     odiaSolarMonth,
     odiaSolarDay,
@@ -3175,8 +3208,8 @@ export function calculateChoghadiya(
   const nowMin = currentTimeMinutes !== undefined
     ? currentTimeMinutes
     : (() => {
-        const now = new Date();
-        return now.getHours() * 60 + now.getMinutes();
+        // IST wall-clock minutes so the live slot highlight is correct on any host
+        return getIstClockMinutes(new Date());
       })();
 
   const dayChoghadiya: ChoghadiyaSlot[] = dayOrder.map((key, i) => {
@@ -3333,8 +3366,8 @@ export function calculatePlanetaryHoras(
   const nowMin = currentTimeMinutes !== undefined
     ? currentTimeMinutes
     : (() => {
-        const now = new Date();
-        return now.getHours() * 60 + now.getMinutes();
+        // IST wall-clock minutes so the live slot highlight is correct on any host
+        return getIstClockMinutes(new Date());
       })();
 
   const firstHoraLordIdx = WEEKDAY_FIRST_HORA_IDX[weekdayIdx % 7];
@@ -3605,7 +3638,7 @@ export function calculateDailyLagnas(
   // If sunriseMinutes is not provided, calculate dynamically from astronomical sun times
   let actualSunriseMinutes = sunriseMinutes;
   if (actualSunriseMinutes === undefined) {
-    const sunTimes = calculateSunTimes(date, latitude, longitude);
+    const sunTimes = calculateSunTimes(date, latitude, longitude, IST_OFFSET_MINUTES);
     const [hm, p] = sunTimes.sunrise.split(' ');
     const [h, m] = hm.split(':');
     let hs = parseInt(h, 10);
@@ -3677,8 +3710,8 @@ export function calculateDailyLagnas(
   const nowMin = currentTimeMinutes !== undefined
     ? currentTimeMinutes
     : (() => {
-        const now = new Date();
-        return now.getHours() * 60 + now.getMinutes();
+        // IST wall-clock minutes so the live slot highlight is correct on any host
+        return getIstClockMinutes(new Date());
       })();
 
   // Build the DailyLagnaInfo array
