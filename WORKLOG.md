@@ -2,8 +2,8 @@
 
 **Repository:** [abhijitparida859-blip/divyajyoti2050](https://github.com/abhijitparida859-blip/divyajyoti2050)
 **Branch for this document:** `cline/thcrj3gp`
-**Last updated:** 2026-10-31
-**Scope:** every module currently in the codebase, commit-by-commit history, and the verification results produced on this branch.
+**Last updated:** 2026-10-31 (after the Issue #2 fix)
+**Scope:** every module currently in the codebase, commit-by-commit history, the verification results, and the Issue #2 timezone/vyapini fix.
 
 ---
 
@@ -32,8 +32,8 @@
 | Languages | Odia (`or`, primary) · Hindi (`hi`) · English (`en`) — 264 keys in each JSON |
 | Panjika supported range | 1950 → 2050 (101 years, `PANJIKA_MIN_YEAR`/`PANJIKA_MAX_YEAR`) |
 | Festival rule IDs in calendar engine | 76 |
-| Test files | 57 (23 behavioural suites + 34 `_diag*` diagnostic harnesses) |
-| Test cases | 196 |
+| Test files | 58 (24 behavioural suites + 34 `_diag*` diagnostic harnesses) |
+| Test cases | 205 — green in UTC, Asia/Kolkata and Australia/Sydney |
 | Offline / packaging | PWA (`public/manifest.json` + `sw.js` service worker) and Android WebView wrapper (`android/`) |
 
 ---
@@ -123,7 +123,7 @@ Chart renderers: `KundaliCharts.tsx` (East/North/South/West + Varga switch), `Ku
 
 | Domain | Files |
 | --- | --- |
-| Astronomy | `julian.ts`, `ephemeris.ts`, `ayanamsha.ts` (Lahiri), `solar_lunar.ts` (sunrise/sunset) |
+| Astronomy | `julian.ts`, `ephemeris.ts`, `ayanamsha.ts` (Lahiri), `solar_lunar.ts` (sunrise/sunset), **`istTime.ts` (Odisha civil-time anchoring)** |
 | Panjika | `panjika_engine.ts`, `odia_calendar_engine.ts`, `muhurta.ts`, `odisha_data.ts` |
 | Jataka | 23 engines listed in §2.3 |
 | Milan | `milan_engine.ts`, `ashtakoot.ts`, `mangal_dosha.ts` |
@@ -155,34 +155,43 @@ Shared types live in `src/types/` (`jataka.ts`, `panjika.ts`, `milan.ts`, `todo.
 
 Everything above is already on `main` and pushed to `origin`.
 
+The Issue #2 fix (timezone anchoring + single-day festival observance, §7.1–§7.2) lands on top of this history on branch `cline/thcrj3gp` and is merged into `main` through a pull request.
+
 ---
 
 ## 6. Verification run on this branch
 
-Executed after a clean `npm install` on `cline/thcrj3gp` (Node/npm sandbox, container timezone **UTC**):
+Executed after a clean `npm install` on `cline/thcrj3gp`:
 
 | Step | Command | Result |
 | --- | --- | --- |
 | Type check | `npx tsc --noEmit` | ✅ **PASS** — 0 errors |
-| Unit tests | `npx vitest run` | ⚠️ **195 / 196 tests pass** — 56 / 57 files pass, 1 pre-existing failure (see §7) |
-| Production build | `npm run build` (`tsc && vite build`) | ✅ **PASS** — 2,233 modules transformed in 8.72 s; `dist/index.html` 2.51 kB, CSS 223.61 kB (35.61 kB gzip), main JS 3,562.88 kB (833.93 kB gzip). Only warning: chunk > 500 kB (code-splitting suggestion). |
+| Unit tests (UTC host) | `TZ=UTC npx vitest run` | ✅ **205 / 205 pass** (58 / 58 files) |
+| Unit tests (IST host) | `TZ=Asia/Kolkata npx vitest run` | ✅ **205 / 205 pass** (58 / 58 files) |
+| Unit tests (+11 host) | `TZ=Australia/Sydney npx vitest run` | ✅ **205 / 205 pass** (58 / 58 files) |
+| Production build | `npm run build` (`tsc && vite build`) | ✅ **PASS** — 2,234 modules transformed in 8.28 s; CSS 223.61 kB (35.61 kB gzip), main JS 3,563.69 kB (834.24 kB gzip). Only warning: chunk > 500 kB (code-splitting suggestion). |
 
-Raw `vitest` tail:
-
-```
-Test Files  1 failed | 56 passed (57)
-     Tests  1 failed | 195 passed (196)
-```
-
-Behavioural suites that pass include `astronomy`, `panjika`, `odiaCalendar`, `multiYearEngineAudit`, `festivalAudit` (fails only on the TZ issue below), `advancedKundali`, `chartsView`, `yearlyForecast`, `milan`, `milanAdvanced`, `nameTransliteration`, `odiaTranslit`, `odiaScriptGuard`, `navigation`, `liveNavigation`, `routeEngine`, `globalGeo`, `mobileLocation`, `japaAudio`, `palmAutoScan`, `palmShastra`, `cosmos`, `appFullRender`.
+Behavioural suites include `astronomy`, `panjika`, `odiaCalendar`, `festivalAudit`, `multiYearEngineAudit`, `panjikaTimezone`, `advancedKundali`, `chartsView`, `yearlyForecast`, `milan`, `milanAdvanced`, `nameTransliteration`, `odiaTranslit`, `odiaScriptGuard`, `navigation`, `liveNavigation`, `routeEngine`, `globalGeo`, `mobileLocation`, `japaAudio`, `palmAutoScan`, `palmShastra`, `cosmos`, `appFullRender`.
 
 > The 34 `_diag*.test.ts` files are **diagnostic harnesses** (they log tithi/sankranti scans for specific years such as 1975 and 2026). They are intentional and pass, but they are not assertions.
 
-## 7. Known issues found during verification (not yet fixed)
+### Cross-timezone equivalence proof
 
-### 7.1 Calendrical dates depend on the machine timezone (high impact)
+A snapshot of the whole calendar — date, solar month/day, lunar month, tithi, nakshatra, festival ids and sankranti name for **10,592 days (29 years: 1950, 1975, 2000, 2015, 2026-2050)** — was generated on three hosts and compared:
 
-`src/tests/festivalAudit.test.ts` fails in a UTC environment:
+| Comparison | Differing days |
+| --- | --- |
+| Legacy code on IST host → new code on IST host | 27 (all intentional festival dedupes, see §7.2) |
+| New code on IST host → new code on **UTC** host | **0 / 10,592** |
+| New code on IST host → new code on **Australia/Sydney** host | **0 / 10,592** |
+
+No non-festival field changed at all, and **no festival disappeared from any year** (verified per festival id per year: 0 losses, 27 multi-day → single-day dedupes).
+
+## 7. Issues found during verification
+
+### 7.1 Calendrical dates depended on the machine timezone — ✅ FIXED
+
+`src/tests/festivalAudit.test.ts` failed in a UTC environment:
 
 ```
 FAIL src/tests/festivalAudit.test.ts > All-Year 2026 Canonical Odia Festival Audit
@@ -190,7 +199,7 @@ AssertionError: expected undefined to deeply equal [ '2026-06-15' ]
  ❯ src/tests/festivalAudit.test.ts:24:42   expect(festivalDates['pahili_raja']).toEqual(['2026-06-15']);
 ```
 
-Probing `calculateOdiaCalendarDay()` for 2026-06-12 → 06-19 shows the whole solar-day grid shifts with the host timezone:
+Probing `calculateOdiaCalendarDay()` for 2026-06-12 → 06-19 showed the whole solar-day grid shifting with the host timezone:
 
 | UTC host | | Asia/Kolkata host | |
 | --- | --- | --- | --- |
@@ -199,26 +208,49 @@ Probing `calculateOdiaCalendarDay()` for 2026-06-12 → 06-19 shows the whole so
 | 2026-06-17 | `odiaSolarDay = 3`, `basumati_snana` | 2026-06-17 | `odiaSolarDay = 2`, `shesa_raja` |
 | — | `pahili_raja` never emitted | — | `pahili_raja` correctly on 2026-06-15 ✅ |
 
-With `TZ=Asia/Kolkata` the Raja Parba block is correct, but the same test then fails one assertion later:
+With `TZ=Asia/Kolkata` the Raja Parba block was correct, but the same test then failed one assertion later — the vyapini duplicate described in §7.2.
+
+**Cause:** `calculateOdiaCalendarDay()` mixed host-local `Date` construction with IST-anchored solar-longitude evaluation, so sunrise/solar-day/Mithuna-Sankranti boundaries landed on different civil days for hosts that are not `Asia/Kolkata`. An Odia Panjika must always resolve dates in IST (Odisha civil time), whatever the user's or server's timezone is.
+
+**Fix implemented (commit on `cline/thcrj3gp`):**
+
+| File | Change |
+| --- | --- |
+| `src/core/astronomy/istTime.ts` **(new)** | Single source of truth for Odisha civil time: `IST_OFFSET_MINUTES`, `getCivilDateParts`, `getCivilDatePartsIn`, `getIstCivilDateParts`, `istInstantFromMinutes`, `getCivilWeekday`, `addCivilDays`, `getIstClockMinutes`, `formatIstClock`, `isDateCarrier`, `getClockMinutesIn`. |
+| `src/core/astronomy/solar_lunar.ts` | `calculateSunTimes()` takes an explicit `timezoneOffsetMinutes` (Panjika engines pass IST). Day-of-year and the fractional-year term are now derived from the civil date in that timezone, so the same sunrise instant is produced on every host. NOAA formulas themselves untouched. |
+| `src/core/panjika/odia_calendar_engine.ts` | Sunrise instant, previous-sunrise instant, purvahna/madhyahna/aparahna/pradosha/nishitha samples, "tomorrow" sankranti probe, Amavasya reference and weekday are all built from `civilParts` + IST minutes. Live choghadiya/hora highlights use IST wall-clock minutes. |
+| `src/core/panjika/panjika_engine.ts` | Sunrise/sunset, tithi end time, vaara, `dateStr` and muhurta weekday are all expressed in IST; `calculatePanjika(instant)` is now a pure function of the instant. |
+| `src/components/home/UpcomingFestivals.tsx` | Probes the next 30 days at **IST noon** of each civil day instead of the host-local time, so festival labels never shift with the host timezone. |
+
+**Verification:** see the cross-timezone equivalence table in §6 — 0 differing days out of 10,592 for UTC and Sydney hosts, and only the 27 intentional dedupes versus the previous IST behaviour.
+
+### 7.2 Tithi-bound festivals could be emitted on two consecutive days — ✅ FIXED
+
+Under IST the scan collected `snana_purnima` for both 2026-06-29 and 2026-06-30:
 
 ```
 AssertionError: expected [ '2026-06-29', '2026-06-30' ] to deeply equal [ '2026-06-30' ]
  ❯ src/tests/festivalAudit.test.ts:31:42   expect(festivalDates['snana_purnima']).toEqual(['2026-06-30']);
 ```
 
-**Cause:** `calculateOdiaCalendarDay()` mixes host-local `Date` construction with IST-anchored solar longitude evaluation, so sunrise/solar-day/Mithuna-Sankranti boundaries land on different civil days for hosts that are not `Asia/Kolkata`. **Impact:** an Odia Panjika must always resolve dates in IST (Odisha civil time); a user or server outside IST can see festivals and solar days shifted by one day.
+A tithi lasts ~24.5 h, so when it starts shortly before one sunrise and ends after the next one it is present at **two** sunrises. Purnima 2026 began 4 minutes before sunrise on 29 June. The same happens for Saptami on 17/18 October 2026 (the next assertion to fail), and a scan of 2026/2027 showed `snana_purnima` was the only Purnima-rule duplicate while other tithi-bound festivals duplicated in later years.
 
-**Suggested fix (needs a dedicated change):** normalise every entry point in `core/panjika/odia_calendar_engine.ts` (and `panjika_engine.ts`) to `Asia/Kolkata` civil time before computing `solarRashiIdx`, `odiaSolarDay` and tithi-at-sunrise, then re-baseline `festivalAudit.test.ts`. Astronomical formulas should not be altered — only the civil-time anchoring.
+**Fix implemented:** a generic udaya-vyapini resolver inside `calculateOdiaCalendarDay()`:
 
-### 7.2 `snana_purnima` can be emitted on two consecutive days
+```ts
+const isTithiObservanceToday = (targetTithi: number) =>
+  tithiNumber === targetTithi && getNextSunriseTithiNumber() !== targetTithi;
+```
 
-Under IST the festival scan collects `snana_purnima` for both 2026-06-29 and 2026-06-30, because the rule `isPurnima && (solarRashiIdx === 2 || (solarRashiIdx === 1 && degInRashi >= 25))` fires on both sunrise days that Purnima tithi spans. Panjika convention expects a single observance day (Purvahna/vyapini rule). Needs a "tithi at sunrise vs. vyapini" disambiguation, similar to the existing `isKshayaDwitya` handling for Ratha Yatra.
+Every tithi-bound festival rule now uses `isTithiObservanceToday(n)` (and `isPurnimaObservance` for the Purnima rules), so a festival is emitted only on the **last** sunrise day holding its tithi. The next sunrise tithi is computed lazily and memoised, so the extra ephemeris work happens only on days whose tithi matches a rule. Ratha Yatra keeps its existing kshaya-Dwitiya fallback: `isTithiObservanceToday(2) || isKshayaDwitiya`.
 
-Neither issue was introduced by this branch — both are present on `main` at `c4f6234`. They are recorded here instead of being silently patched, because the fix touches core astronomical/calendar logic and should be reviewed separately.
+**Effect across 29 years:** 27 festivals moved from two days to one (e.g. `snana_purnima` 2026-06-30, `maha_saptami` 2026-10-18, `durga_ashtami` 2027-10-08, `ratha_yatra` 2030, `dola_purnima` 2032/2033). **Zero festivals lost in any year**, and no other field changed.
 
-### 7.3 Housekeeping — stale lockfile entries
+**Regression tests added** — `src/tests/panjikaTimezone.test.ts` (9 tests) locks IST sunrise/sunset/tithi-end values, the IST solar-day/sankranti boundary, the weekday, single-day observance for Snana Purnima and Maha Saptami, the whole 2026 Durga Puja cycle, "no annual festival on more than one day", and Ratha Yatra on Asadha Shukla Dwitiya.
 
-`package-lock.json` still lists `@react-three/drei`, `@react-three/fiber` and their transitive packages (`@mediapipe/tasks-vision`, `@monogrid/gainmap-js`, …) even though neither is declared in `package.json` and nothing in `src/` imports them. A plain `npm install` prunes ~620 lines from the lockfile. Left untouched in this commit so the documentation diff stays reviewable.
+### 7.3 Housekeeping — stale lockfile entries (open)
+
+`package-lock.json` still lists `@react-three/drei`, `@react-three/fiber` and their transitive packages (`@mediapipe/tasks-vision`, `@monogrid/gainmap-js`, …) even though neither is declared in `package.json` and nothing in `src/` imports them. A plain `npm install` prunes ~620 lines from the lockfile. Left untouched so the fix diff stays reviewable — worth a separate chore commit.
 
 ---
 
@@ -238,15 +270,20 @@ Windows helpers: `Start_DivyaJyoti.bat`, `launch_app.ps1`, `launch_silent.vbs`. 
 ## 9. Conventions for the next change
 
 1. `npx tsc --noEmit` must report **0 errors**.
-2. `npx vitest run` must stay at **196 passing** (fix §7 rather than deleting assertions).
+2. `npx vitest run` must stay at **205 passing** (58 files) — and must pass unchanged under `TZ=UTC`, `TZ=Asia/Kolkata` and `TZ=Australia/Sydney`:
+   ```bash
+   TZ=UTC npx vitest run && TZ=Asia/Kolkata npx vitest run && TZ=Australia/Sydney npx vitest run
+   ```
 3. `npm run build` must succeed (chunk-size warning is acceptable).
 4. Never hardcode English text where Odia or Hindi is expected — add the key to `or.json`, `hi.json` **and** `en.json` together (264 keys each today).
 5. Preserve astronomical formulas and their explanatory comments; calendar bugs are fixed by civil-time anchoring, not by changing ephemeris maths.
-6. Work happens on a `cline/*` branch; `main` is only updated through review.
+6. **Never** build a Panjika date from host-local `new Date(y, m, d, h, m)`. Use `istInstantFromMinutes(civilParts, minutes)` from `core/astronomy/istTime.ts`, and express every clock string in IST.
+7. Tithi-bound festival rules must use `isTithiObservanceToday(n)` / `isPurnimaObservance`, never a bare `tithiNumber === n`, so udaya-vyapini days are resolved to a single observance day.
+8. Work happens on a `cline/*` branch; `main` is only updated through review.
 
 ---
 
 ### ଶେଷ କଥା (Closing note)
 
-This document is the single place to see **what exists** in DivyaJyoti 2050 and **what state it is in**: 9 modules, 27 Kundali tabs, 46 engines, trilingual UI, type-check and production build green, 195/196 tests green, with the two calendar issues above documented for the next focused fix.
+This document is the single place to see **what exists** in DivyaJyoti 2050 and **what state it is in**: 9 modules, 27 Kundali tabs, 46 engines, trilingual UI, type-check and production build green, 205/205 tests green in three timezones, and both calendar defects from Issue #2 fixed with a 10,592-day cross-timezone equivalence proof.
 

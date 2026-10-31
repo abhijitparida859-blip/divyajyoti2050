@@ -5,6 +5,7 @@
 import React, { useMemo } from 'react';
 import { useI18n } from '../../localization/i18n';
 import { calculatePanjika } from '../../core/panjika/panjika_engine';
+import { getCivilDateParts, istInstantFromMinutes } from '../../core/astronomy/istTime';
 import { Sparkles } from 'lucide-react';
 
 interface Props {
@@ -45,7 +46,9 @@ export const UpcomingFestivals: React.FC<Props> = ({ latitude, longitude }) => {
       const d = new Date(today);
       d.setDate(d.getDate() + i);
       try {
-        const p = calculatePanjika(d, latitude, longitude);
+        // Probe at IST noon of the civil day so the festival labels do not shift
+        // with the host timezone (Odisha panjika is always resolved in IST).
+        const p = calculatePanjika(istInstantFromMinutes(getCivilDateParts(d), 720), latitude, longitude);
         // A long tithi can mark the same vrata on two civil days — show it once.
         const names = (p.festivals ?? []).filter((n) => lastSeen[n] === undefined || i - lastSeen[n] >= 3);
         if (names.length > 0) {
